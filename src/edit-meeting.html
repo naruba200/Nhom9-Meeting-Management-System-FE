@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Chỉnh sửa cuộc họp</title>
+    <style>
+        body {
+            font-family: Arial;
+            padding: 40px;
+            max-width: 700px;
+            margin: auto;
+        }
+
+        h2 {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-top: 15px;
+        }
+
+        input, textarea, select {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+        }
+
+        button {
+            margin-top: 20px;
+            padding: 10px 15px;
+            cursor: pointer;
+        }
+
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+
+<h2>Chỉnh sửa cuộc họp</h2>
+
+<form id="editForm">
+
+    <label>Tiêu đề</label>
+    <input type="text" id="title" required>
+
+    <label>Mô tả</label>
+    <textarea id="description"></textarea>
+
+    <label>Loại cuộc họp</label>
+    <input type="text" id="type">
+
+    <label>Thời gian bắt đầu</label>
+    <input type="datetime-local" id="startTime" required>
+
+    <label>Thời gian kết thúc</label>
+    <input type="datetime-local" id="endTime" required>
+
+    <label>Trạng thái</label>
+    <select id="status">
+        <option value="SCHEDULED">SCHEDULED</option>
+        <option value="ONGOING">ONGOING</option>
+        <option value="COMPLETED">COMPLETED</option>
+        <option value="CANCELLED">CANCELLED</option>
+    </select>
+
+    <button type="submit">Lưu thay đổi</button>
+
+</form>
+
+<div id="message"></div>
+
+<script src="edit-meeting.js"></script>
+</body>
+</html>
