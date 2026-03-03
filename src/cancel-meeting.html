@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Hủy cuộc họp</title>
+    <style>
+        body {
+            font-family: Arial;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .box {
+            border: 1px solid #ccc;
+            padding: 30px;
+            max-width: 500px;
+            margin: auto;
+        }
+
+        button {
+            padding: 10px 15px;
+            margin: 10px;
+            cursor: pointer;
+        }
+
+        .danger {
+            background-color: red;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+
+<div class="box">
+    <h2>Bạn có chắc muốn hủy cuộc họp?</h2>
+    <p>Hành động này sẽ chuyển trạng thái sang CANCELLED.</p>
+
+    <button class="danger" onclick="cancelMeeting()">Xác nhận hủy</button>
+    <button onclick="goBack()">Quay lại</button>
+
+    <div id="message"></div>
+</div>
+
+<script src="cancel-meeting.js"></script>
+
+</body>
+</html>

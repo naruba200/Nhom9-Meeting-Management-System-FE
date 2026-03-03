@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Lịch sử cuộc họp</title>
+    <style>
+        body {
+            font-family: Arial;
+            padding: 40px;
+        }
+
+        h2 {
+            margin-bottom: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 10px;
+            border: 1px solid #ccc;
+        }
+
+        th {
+            background: #f2f2f2;
+        }
+
+        .status {
+            font-weight: bold;
+        }
+
+        .CANCELLED { color: red; }
+        .COMPLETED { color: green; }
+        .ONGOING { color: orange; }
+        .SCHEDULED { color: blue; }
+
+        button {
+            padding: 5px 10px;
+            margin-right: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<h2>Lịch sử cuộc họp</h2>
+
+<table>
+    <thead>
+        <tr>
+            <th>Tiêu đề</th>
+            <th>Mô tả</th>
+            <th>Bắt đầu</th>
+            <th>Kết thúc</th>
+            <th>Trạng thái</th>
+            <th>Hành động</th>
+            <th>Người tổ chức</th>
+        </tr>
+    </thead>
+    <tbody id="meetingTable">
+
+        <tr>
+            <td>Họp chiến lược quý</td>
+            <td>Vạch chiến lược phát triển của quý tới</td>
+            <td>10/03/2026 08:00</td>
+            <td>10/03/2026 09:30</td>
+            <td class="status COMPLETED">COMPLETED</td>
+            <td>
+                <button>Sửa</button>
+            </td>
+            <td>Giám Đốc A</td>
+        </tr>
+
+        <tr>
+            <td>Họp online với khách hàng</td>
+            <td>Bàn bạc về vấn đề chi phí với khách hàng</td>
+            <td>15/03/2026 14:00</td>
+            <td>15/03/2026 15:00</td>
+            <td class="status SCHEDULED">SCHEDULED</td>
+            <td>
+                <button>Sửa</button>
+                <button>Hủy</button>
+            </td>
+            <td>Quản Lý B</td>
+        </tr>
+
+        <tr>
+            <td>Tổng kết dự án X</td>
+            <td>Tổng hợp lợi nhuận của dự án X</td>
+            <td>28/02/2026 10:00</td>
+            <td>28/02/2026 11:30</td>
+            <td class="status CANCELLED">CANCELLED</td>
+            <td>
+                <button disabled>Đã hủy</button>
+            </td>
+            <td>Trưởng Nhóm C</td>
+        </tr>
+
+    </tbody>
+</table>
+
+<script src="meeting-history.js"></script>
+
+</body>
+</html>
