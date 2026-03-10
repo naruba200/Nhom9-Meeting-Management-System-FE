@@ -80,7 +80,7 @@ export class AuthService {
   }
 
   signup(fullName: string, email: string, password: string): Observable<AuthResponse> {
-    return this.http.post<AuthResponse>(`${this.apiUrl}/signup`, {
+    return this.http.post<AuthResponse>(`${this.apiUrl}/register`, {
       fullName,
       email,
       password
