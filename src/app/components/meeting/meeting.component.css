@@ -1,0 +1,16 @@
+/* Meeting Component Styles */
+
+/* Font import for Inter/Roboto */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* Apply Inter font globally within this component */
+:host {
+  font-family: 'Inter', 'Roboto', sans-serif;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+  .flex-col {
+    flex-direction: column-reverse;
+  }
+}

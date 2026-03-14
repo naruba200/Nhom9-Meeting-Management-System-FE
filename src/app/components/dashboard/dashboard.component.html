@@ -3,7 +3,7 @@
     <h1>Dashboard</h1>
     <div class="user-info">
       <span>Xin chào, {{ userInfo?.fullName || 'User' }}!</span>
-      <button (click)="logout()" class="btn btn-logout">Đăng xuất</button>
+      <app-user-menu [fullName]="userInfo?.fullName || ''" [email]="userInfo?.email || ''"></app-user-menu>
     </div>
   </div>
   

@@ -5,19 +5,28 @@ import { AuthService } from '../../services/auth.service';
 import { UserMenuComponent } from '../user-menu/user-menu.component';
 
 @Component({
-  selector: 'app-dashboard',
+  selector: 'app-homepage',
   standalone: true,
   imports: [CommonModule, RouterModule, UserMenuComponent],
-  templateUrl: './dashboard.component.html',
-  styleUrls: ['./dashboard.component.css']
+  templateUrl: './homepage.component.html',
+  styleUrls: ['./homepage.component.css']
 })
-export class DashboardComponent {
+export class HomepageComponent {
   userInfo: { email: string; fullName: string } | null = null;
+  isMenuOpen = false;
 
   constructor(
     private authService: AuthService,
     private router: Router
   ) {
     this.userInfo = this.authService.getUserInfo();
+  }
+
+  toggleMenu(): void {
+    this.isMenuOpen = !this.isMenuOpen;
+  }
+
+  navigateTo(route: string): void {
+    this.router.navigate([route]);
   }
 }

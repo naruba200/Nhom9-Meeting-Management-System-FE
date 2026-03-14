@@ -25,6 +25,8 @@ export class RegisterComponent {
   errorMessage = '';
   successMessage = '';
   showOtpVerification = false;
+  showErrorModal = false;
+  apiErrorMessage = '';
 
   constructor(
     private authService: AuthService,
@@ -65,13 +67,23 @@ export class RegisterComponent {
       error: (error) => {
         console.error('Register error:', error);
         console.error('Error details:', error.status, error.statusText);
-        this.errorMessage = error.error?.message || 'Đăng ký thất bại. Vui lòng thử lại.';
         this.isLoading = false;
+        if (error.status === 0) {
+          this.apiErrorMessage = 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng và thử lại.';
+          this.showErrorModal = true;
+        } else {
+          this.errorMessage = error.error?.message || 'Đăng ký thất bại. Vui lòng thử lại.';
+        }
       },
       complete: () => {
         console.log('Register request completed');
         this.isLoading = false;
       }
     });
+  }
+
+  closeErrorModal(): void {
+    this.showErrorModal = false;
+    window.location.reload();
   }
 }

@@ -58,6 +58,20 @@ https://angular.dev/essentials/signals
 https://angular.dev/essentials/templates
 https://angular.dev/essentials/dependency-injection
 
+## Full-Stack Context (Frontend + Backend)
+
+When making implementation choices in this frontend repository, always inspect the backend repository in the same workspace (`Nhom9-Meeting-Management-System-BE`) first when the task involves APIs, authentication, authorization, validation, or data models.
+
+Before proposing or changing frontend code that talks to the server:
+
+- Check backend controller endpoints (method, path, request/response shape, status codes).
+- Check backend DTO/entity fields and validation constraints to align frontend models and forms.
+- Check backend auth flow (login, register, OTP, reset password, token format/expiry) to avoid mismatches.
+- Prefer solutions that minimize divergence between FE models/services and BE contracts.
+- If FE and BE are inconsistent, recommend the smallest safe FE change first, and clearly note any BE-side follow-up.
+
+For service and model updates in Angular, treat backend contract compatibility as a hard requirement.
+
 ## Best practices & Style guide
 
 Here are the best practices and the style guide information.

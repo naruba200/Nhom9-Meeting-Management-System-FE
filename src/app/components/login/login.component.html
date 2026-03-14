@@ -52,3 +52,14 @@
     </div>
   </div>
 </div>
+
+@if (showErrorModal) {
+  <div class="error-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="login-error-title">
+    <div class="error-modal">
+      <div class="error-modal-icon" aria-hidden="true">⚠️</div>
+      <h3 id="login-error-title">Lỗi kết nối</h3>
+      <p>{{ apiErrorMessage }}</p>
+      <button class="btn btn-primary" (click)="closeErrorModal()" autofocus>Đóng</button>
+    </div>
+  </div>
+}

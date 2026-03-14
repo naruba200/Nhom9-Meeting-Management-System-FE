@@ -21,6 +21,8 @@ export class LoginComponent {
   isLoading = false;
   errorMessage = '';
   successMessage = '';
+  showErrorModal = false;
+  apiErrorMessage = '';
 
   constructor(
     private authService: AuthService,
@@ -49,18 +51,28 @@ export class LoginComponent {
         this.authService.saveToken(response.token);
         this.successMessage = 'Đăng nhập thành công!';
         setTimeout(() => {
-          this.router.navigate(['/dashboard']);
+          this.router.navigate(['/homepage']);
         }, 1000);
       },
       error: (error) => {
         console.error('Login error:', error);
-        this.errorMessage = error.error?.message || 'Đăng nhập thất bại. Vui lòng thử lại.';
         this.isLoading = false;
+        if (error.status === 0) {
+          this.apiErrorMessage = 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng và thử lại.';
+          this.showErrorModal = true;
+        } else {
+          this.errorMessage = error.error?.message || 'Đăng nhập thất bại. Vui lòng thử lại.';
+        }
       },
       complete: () => {
         console.log('Login request completed');
         this.isLoading = false;
       }
     });
+  }
+
+  closeErrorModal(): void {
+    this.showErrorModal = false;
+    window.location.reload();
   }
 }

@@ -29,3 +29,17 @@ export interface ResetPasswordRequest {
   token: string;
   newPassword: string;
 }
+
+export interface UserProfile {
+  id: number;
+  email: string;
+  fullName: string;
+  phone: string;
+  role: string;
+  enabled: boolean;
+}
+
+export interface UpdateProfileRequest {
+  fullName?: string;
+  phone?: string;
+}

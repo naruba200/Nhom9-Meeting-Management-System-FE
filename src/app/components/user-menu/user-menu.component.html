@@ -1,0 +1,33 @@
+<div class="user-menu" (click)="$event.stopPropagation()">
+  <button
+    type="button"
+    class="user-menu-trigger"
+    (click)="toggleMenu()"
+    aria-label="Mở menu người dùng"
+    [attr.aria-expanded]="isOpen()"
+  >
+    <span class="user-menu-avatar">{{ getInitials() }}</span>
+    <svg xmlns="http://www.w3.org/2000/svg" class="user-menu-chevron" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+    </svg>
+  </button>
+
+  @if (isOpen()) {
+    <div class="user-menu-panel" role="menu">
+      <div class="user-menu-header">
+        <p class="user-menu-name">{{ fullName() || 'Người dùng' }}</p>
+        <p class="user-menu-email">{{ email() || 'Chưa có email' }}</p>
+      </div>
+
+      <a routerLink="/profile" class="user-menu-item" role="menuitem" (click)="closeMenu()">
+        Trang cá nhân
+      </a>
+      <a routerLink="/settings" class="user-menu-item" role="menuitem" (click)="closeMenu()">
+        Cài đặt
+      </a>
+      <button type="button" class="user-menu-item user-menu-logout" role="menuitem" (click)="logout()">
+        Đăng xuất
+      </button>
+    </div>
+  }
+</div>

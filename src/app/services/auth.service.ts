@@ -8,7 +8,9 @@ import {
   AuthResponse, 
   OtpRequest, 
   ForgotPasswordRequest, 
-  ResetPasswordRequest 
+  ResetPasswordRequest,
+  UserProfile,
+  UpdateProfileRequest
 } from '../models/auth.models';
 
 @Injectable({
@@ -54,6 +56,16 @@ export class AuthService {
     return this.http.post<string>(`${this.apiUrl}/resend-otp`, { email });
   }
 
+  // Lấy thông tin profile từ backend
+  getProfile(): Observable<UserProfile> {
+    return this.http.get<UserProfile>(`${this.apiUrl}/profile`);
+  }
+
+  // Cập nhật thông tin profile
+  updateProfile(request: UpdateProfileRequest): Observable<UserProfile> {
+    return this.http.put<UserProfile>(`${this.apiUrl}/profile`, request);
+  }
+
   // Lưu token vào localStorage
   saveToken(token: string): void {
     localStorage.setItem('authToken', token);
@@ -61,7 +73,12 @@ export class AuthService {
 
   // Lấy token từ localStorage
   getToken(): string | null {
-    return localStorage.getItem('authToken');
+    const token = localStorage.getItem('authToken')?.trim();
+    if (!token || token === 'undefined' || token === 'null') {
+      return null;
+    }
+
+    return token;
   }
 
   // Xóa token
@@ -71,7 +88,7 @@ export class AuthService {
 
   // Kiểm tra đã đăng nhập chưa
   isLoggedIn(): boolean {
-    return this.getToken() !== null;
+    return !!this.getToken();
   }
 
   // Lấy thông tin user từ token
@@ -88,5 +105,10 @@ export class AuthService {
     } catch {
       return null;
     }
+  }
+
+  // Đăng xuất
+  logout(): void {
+    this.removeToken();
   }
 }
