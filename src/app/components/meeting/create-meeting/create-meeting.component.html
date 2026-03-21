@@ -70,6 +70,46 @@
       </div>
     </div>
 
+    <div class="rounded-xl border border-gray-200 p-4">
+      <div class="mb-2 flex items-center justify-between">
+        <label for="meetingAttachments" class="text-sm font-semibold text-gray-800">Tài liệu đính kèm</label>
+        <span class="text-xs text-gray-500">Tối đa 10 file, mỗi file 50MB</span>
+      </div>
+
+      <input id="meetingAttachments"
+             type="file"
+             multiple
+             accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.zip,.rar,.jpg,.jpeg,.png"
+             (change)="onAttachmentSelected($event)"
+             class="block w-full cursor-pointer rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-600 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-indigo-700" />
+
+      <p class="mt-2 text-xs text-gray-500">
+        Tài liệu sẽ được tải trực tiếp lên Cloudinary sau khi tạo cuộc họp thành công.
+      </p>
+
+      <div *ngIf="selectedAttachmentFiles.length > 0" class="mt-3 space-y-2">
+        <div *ngFor="let attachment of selectedAttachmentFiles; let i = index"
+             class="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
+          <div class="min-w-0">
+            <p class="truncate text-sm font-medium text-gray-700">{{ attachment.name }}</p>
+            <p class="text-xs text-gray-500">
+              {{ attachment.type || 'Không xác định loại file' }} • {{ formatFileSize(attachment.size) }}
+            </p>
+          </div>
+          <button type="button"
+                  (click)="removeAttachment(i)"
+                  class="ml-2 rounded-md p-1 text-red-500 hover:bg-red-50 hover:text-red-700">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <p *ngIf="selectedAttachmentFiles.length === 0" class="mt-2 text-sm text-gray-500">Chưa có tài liệu nào được đính kèm.</p>
+      <p class="mt-2 text-xs text-gray-600">Tổng dung lượng tạm tính: {{ formatFileSize(totalAttachmentSizeBytes) }}</p>
+    </div>
+
     <!-- Agenda Field -->
     <div>
       <label for="agenda" class="block text-sm font-medium text-gray-700 mb-1">

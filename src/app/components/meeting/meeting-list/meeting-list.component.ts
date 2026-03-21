@@ -1,10 +1,11 @@
 import { ChangeDetectorRef, Component, inject, OnDestroy, OnInit, PLATFORM_ID } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
-import { finalize, Subscription, timeout, TimeoutError } from 'rxjs';
+import { concatMap, finalize, Subscription, timeout, TimeoutError } from 'rxjs';
 import { FormsModule } from '@angular/forms';
-import { AgendaItem, Meeting, ParticipantInvitationStatus, UpdateMeetingRequest } from '../../../models/meeting.models';
+import { AgendaItem, Meeting, MeetingAttachment, ParticipantInvitationStatus, UpdateMeetingRequest } from '../../../models/meeting.models';
 import { MeetingService } from '../../../services/meeting.service';
 import { AuthService } from '../../../services/auth.service';
+import { ToastService } from '../../../services/toast.service';
 
 @Component({
   selector: 'app-meeting-list',
@@ -49,6 +50,10 @@ export class MeetingListComponent implements OnInit, OnDestroy {
   inviteEmailError = '';
   existingParticipantEmails: string[] = [];
   editAgendaDragIndex: number | null = null;
+  editAttachmentFiles: File[] = [];
+  isUploadingEditAttachments = false;
+  isDeletingAttachment = false;
+  deletingAttachmentId: number | null = null;
   editForm: UpdateMeetingRequest & { id: number | null } = {
     id: null,
     title: '',
@@ -67,6 +72,7 @@ export class MeetingListComponent implements OnInit, OnDestroy {
     private meetingService: MeetingService,
     private authService: AuthService,
     private cdr: ChangeDetectorRef,
+    private toastService: ToastService,
   ) {}
 
   ngOnInit(): void {
@@ -228,6 +234,7 @@ export class MeetingListComponent implements OnInit, OnDestroy {
       .subscribe({
         next: () => {
           this.inviteSuccessMessage = `Đã gửi lời mời đến ${invitedCount} người thành công!`;
+          this.toastService.success(`Đã gửi lời mời đến ${invitedCount} người thành công!`);
           this.inviteEmails = [];
           this.inviteEmailInput = '';
           this.refreshMeetingsView();
@@ -235,6 +242,7 @@ export class MeetingListComponent implements OnInit, OnDestroy {
         },
         error: (error) => {
           this.inviteErrorMessage = error?.error?.message || 'Không thể gửi lời mời. Vui lòng thử lại.';
+          this.toastService.error(this.inviteErrorMessage);
           this.cdr.detectChanges();
         },
       });
@@ -444,10 +452,12 @@ export class MeetingListComponent implements OnInit, OnDestroy {
           this.meetings = this.meetings.filter((item) => item.id !== meeting.id);
           this.closeDetailModal();
           this.refreshMeetingsView();
+          this.toastService.success(`Đã hủy cuộc họp "${meeting.title}" thành công!`);
           this.cdr.detectChanges();
         },
         error: (error) => {
           this.errorMessage = error?.error?.message || 'Không thể hủy cuộc họp. Vui lòng thử lại.';
+          this.toastService.error(this.errorMessage);
           this.cdr.detectChanges();
         }
       });
@@ -479,10 +489,12 @@ export class MeetingListComponent implements OnInit, OnDestroy {
           }
           this.participantActionError = '';
           this.refreshMeetingsView();
+          this.toastService.success('Đã xóa người tham gia thành công!');
           this.cdr.detectChanges();
         },
         error: (error) => {
           this.participantActionError = error?.error?.message || 'Không thể xóa người tham gia. Vui lòng thử lại.';
+          this.toastService.error(this.participantActionError);
           this.cdr.detectChanges();
         },
       });
@@ -510,6 +522,10 @@ export class MeetingListComponent implements OnInit, OnDestroy {
     this.initialAgendaSnapshot = '[]';
     this.editAgendaDragIndex = null;
     this.editErrorMessage = '';
+    this.editAttachmentFiles = [];
+    this.isUploadingEditAttachments = false;
+    this.isDeletingAttachment = false;
+    this.deletingAttachmentId = null;
     this.editForm = {
       id: null,
       title: '',
@@ -587,6 +603,7 @@ export class MeetingListComponent implements OnInit, OnDestroy {
     }
 
     this.isUpdatingMeeting = true;
+    this.isUploadingEditAttachments = this.editAttachmentFiles.length > 0;
     this.editErrorMessage = '';
     this.normalizeEditAgendaOrders();
 
@@ -599,14 +616,40 @@ export class MeetingListComponent implements OnInit, OnDestroy {
       endTime: this.editForm.endTime,
       externalMeetingLink: this.editForm.externalMeetingLink,
       syncWithGoogleCalendar: this.editForm.syncWithGoogleCalendar,
-    }).subscribe({
+    }).pipe(
+      concatMap(() => {
+        if (this.editForm.id == null || this.editAttachmentFiles.length === 0) {
+          return this.meetingService.loadMeetings();
+        }
+
+        return this.meetingService
+          .uploadAttachmentsToMeeting(this.editForm.id, this.editAttachmentFiles)
+          .pipe(concatMap(() => this.meetingService.loadMeetings()));
+      }),
+      finalize(() => {
+        this.isUpdatingMeeting = false;
+        this.isUploadingEditAttachments = false;
+        this.cdr.detectChanges();
+      })
+    ).subscribe({
       next: () => {
+        this.isUpdatingMeeting = false;
+        this.isUploadingEditAttachments = false;
+        const hasQueuedAttachments = this.editAttachmentFiles.length > 0;
+        this.editAttachmentFiles = [];
         this.closeEditModal();
+        this.toastService.success(
+          hasQueuedAttachments
+            ? 'Đã cập nhật cuộc họp và upload tài liệu thành công!'
+            : 'Đã cập nhật cuộc họp thành công!'
+        );
         this.cdr.detectChanges();
       },
       error: (error) => {
         this.isUpdatingMeeting = false;
+        this.isUploadingEditAttachments = false;
         this.editErrorMessage = error?.error?.message || 'Không thể cập nhật cuộc họp. Vui lòng thử lại.';
+        this.toastService.error(this.editErrorMessage);
         this.cdr.detectChanges();
       },
     });
@@ -643,6 +686,128 @@ export class MeetingListComponent implements OnInit, OnDestroy {
     this.initialAgendaSnapshot = this.buildAgendaSnapshot(this.editForm.agendaItems || []);
     this.editAgendaDragIndex = null;
     this.showEditModal = true;
+  }
+
+  onEditAttachmentSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const files = input.files;
+
+    if (!files || files.length === 0) {
+      return;
+    }
+
+    const maxFileSizeBytes = 50 * 1024 * 1024;
+    const maxTotalFiles = 10;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files.item(i);
+      if (!file) {
+        continue;
+      }
+
+      if ((this.editAttachmentFiles.length + (this.selectedMeeting?.attachments?.length ?? 0)) >= maxTotalFiles) {
+        this.editErrorMessage = 'Tối đa 10 tài liệu cho mỗi cuộc họp.';
+        break;
+      }
+
+      if (file.size > maxFileSizeBytes) {
+        this.editErrorMessage = `Tài liệu "${file.name}" vượt quá 50MB.`;
+        continue;
+      }
+
+      const duplicateInQueue = this.editAttachmentFiles.some(
+        (existingFile) =>
+          existingFile.name === file.name &&
+          existingFile.size === file.size &&
+          existingFile.type === file.type
+      );
+      const duplicateInMeeting = (this.selectedMeeting?.attachments ?? []).some(
+        (attachment) =>
+          attachment.fileName === file.name &&
+          (attachment.fileSizeBytes ?? 0) === file.size
+      );
+
+      if (duplicateInQueue || duplicateInMeeting) {
+        continue;
+      }
+
+      this.editAttachmentFiles.push(file);
+    }
+
+    input.value = '';
+  }
+
+  removeEditAttachmentFile(index: number): void {
+    this.editAttachmentFiles = this.editAttachmentFiles.filter((_, currentIndex) => currentIndex !== index);
+  }
+
+  uploadEditAttachments(): void {
+    if (this.editForm.id == null || this.isUploadingEditAttachments || this.editAttachmentFiles.length === 0) {
+      return;
+    }
+
+    this.isUploadingEditAttachments = true;
+    this.editErrorMessage = '';
+
+    const uploadSub = this.meetingService
+      .uploadAttachmentsToMeeting(this.editForm.id, this.editAttachmentFiles)
+      .pipe(
+        concatMap(() => this.meetingService.loadMeetings()),
+        finalize(() => {
+          this.isUploadingEditAttachments = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: () => {
+          this.isUploadingEditAttachments = false;
+          this.editAttachmentFiles = [];
+          this.toastService.success('Đã tải tài liệu lên Cloudinary thành công!');
+          this.cdr.detectChanges();
+        },
+        error: (error) => {
+          this.isUploadingEditAttachments = false;
+          this.editErrorMessage = error?.error?.message || 'Không thể tải tài liệu lên. Vui lòng thử lại.';
+          this.toastService.error(this.editErrorMessage);
+          this.cdr.detectChanges();
+        },
+      });
+
+    this.subscriptions.push(uploadSub);
+  }
+
+  deleteAttachmentFromMeeting(attachment: MeetingAttachment): void {
+    if (this.editForm.id == null || attachment.id == null || this.isDeletingAttachment) {
+      return;
+    }
+
+    this.isDeletingAttachment = true;
+    this.deletingAttachmentId = attachment.id;
+    this.editErrorMessage = '';
+
+    const deleteSub = this.meetingService
+      .deleteAttachmentFromMeeting(this.editForm.id, attachment.id)
+      .pipe(
+        concatMap(() => this.meetingService.loadMeetings()),
+        finalize(() => {
+          this.isDeletingAttachment = false;
+          this.deletingAttachmentId = null;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: () => {
+          this.toastService.success('Đã xóa tài liệu thành công!');
+          this.cdr.detectChanges();
+        },
+        error: (error) => {
+          this.editErrorMessage = error?.error?.message || 'Không thể xóa tài liệu. Vui lòng thử lại.';
+          this.toastService.error(this.editErrorMessage);
+          this.cdr.detectChanges();
+        },
+      });
+
+    this.subscriptions.push(deleteSub);
   }
 
   addEditAgendaItem(): void {
@@ -723,10 +888,12 @@ export class MeetingListComponent implements OnInit, OnDestroy {
       .subscribe({
         next: () => {
           this.closeAgendaEditorModalInternal();
+          this.toastService.success('Đã lưu agenda thành công!');
           this.cdr.detectChanges();
         },
         error: (error) => {
           this.editErrorMessage = error?.error?.message || 'Không thể lưu agenda. Vui lòng thử lại.';
+          this.toastService.error(this.editErrorMessage);
           this.cdr.detectChanges();
         },
       });
@@ -760,6 +927,54 @@ export class MeetingListComponent implements OnInit, OnDestroy {
     }
 
     return (meeting.agendaItems || []).reduce((sum, item) => sum + (item.durationMinutes || 0), 0);
+  }
+
+  formatFileSize(sizeBytes: number): string {
+    if (sizeBytes < 1024) {
+      return `${sizeBytes} B`;
+    }
+
+    if (sizeBytes < 1024 * 1024) {
+      return `${(sizeBytes / 1024).toFixed(1)} KB`;
+    }
+
+    return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  getCloudUploadStatusText(status?: string): string {
+    if (!status) {
+      return 'Không có trạng thái';
+    }
+
+    const normalizedStatus = status.toUpperCase();
+    if (normalizedStatus === 'UPLOADED') {
+      return 'Đã tải lên Cloudinary';
+    }
+
+    if (normalizedStatus === 'PLACEHOLDER') {
+      return 'Dữ liệu cũ (placeholder)';
+    }
+
+    return status;
+  }
+
+  getAttachmentOpenUrl(attachment: MeetingAttachment): string {
+    const cloudUrl = attachment.cloudUploadUrl || '';
+    if (!cloudUrl) {
+      return '';
+    }
+
+    if (this.isPdfAttachment(attachment)) {
+      return `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(cloudUrl)}`;
+    }
+
+    return cloudUrl;
+  }
+
+  isPdfAttachment(attachment: MeetingAttachment): boolean {
+    const fileType = (attachment.fileType || '').toLowerCase();
+    const fileName = (attachment.fileName || '').toLowerCase();
+    return fileType.includes('pdf') || fileName.endsWith('.pdf');
   }
 
   private normalizeEditAgendaOrders(): void {

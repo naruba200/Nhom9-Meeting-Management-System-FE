@@ -16,6 +16,16 @@ export interface AgendaItem {
   itemOrder: number;
 }
 
+export interface MeetingAttachment {
+  id?: number;
+  fileName: string;
+  fileType?: string | null;
+  fileSizeBytes: number;
+  cloudUploadUrl?: string | null;
+  cloudPublicId?: string | null;
+  cloudUploadStatus?: string;
+}
+
 export type MeetingStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
 export type ParticipantInvitationStatus = 'pending' | 'accepted' | 'declined';
 
@@ -35,6 +45,7 @@ export interface Meeting {
   meetingLink?: string | null;
   googleCalendarEventId?: string | null;
   syncedWithGoogleCalendar: boolean;
+  attachments: MeetingAttachment[];
 }
 
 export interface CreateMeetingRequest {
@@ -74,6 +85,28 @@ export interface UpdateMeetingRequest {
   timezone?: string;
 }
 
+export interface AttachmentUploadSignatureRequest {
+  fileName: string;
+}
+
+export interface AttachmentUploadSignatureResponse {
+  cloudName: string;
+  apiKey: string;
+  timestamp: number;
+  signature: string;
+  folder: string;
+  publicId: string;
+  resourceType: string;
+}
+
+export interface ConfirmMeetingAttachmentUploadRequest {
+  fileName: string;
+  fileType?: string;
+  fileSizeBytes: number;
+  cloudPublicId: string;
+  secureUrl: string;
+}
+
 export interface InviteMeetingRequest {
   attendeeEmails: string[];
 }
@@ -94,6 +127,7 @@ export interface MeetingApiResponse {
   createdAt: string;
   updatedAt: string;
   attendees?: MeetingAttendeeApiResponse[];
+  attachments?: MeetingAttachmentApiResponse[];
 }
 
 export interface MeetingAttendeeApiResponse {
@@ -111,4 +145,14 @@ export interface AgendaItemApiResponse {
   durationMinutes: number;
   description?: string | null;
   itemOrder: number;
+}
+
+export interface MeetingAttachmentApiResponse {
+  id: number;
+  fileName: string;
+  fileType?: string | null;
+  fileSizeBytes: number;
+  cloudUploadUrl?: string | null;
+  cloudPublicId?: string | null;
+  cloudUploadStatus?: string;
 }

@@ -5,18 +5,19 @@ import { AuthService } from '../services/auth.service';
 @Injectable({
   providedIn: 'root'
 })
-export class AdminGuard implements CanActivate {
+export class NoAuthGuard implements CanActivate {
   constructor(
     private authService: AuthService,
     private router: Router
   ) {}
 
   canActivate(): boolean {
-    if (this.authService.isLoggedIn() && this.authService.isAdmin()) {
-      return true;
-    } else {
+    if (this.authService.isLoggedIn()) {
+      // Nếu đã đăng nhập, redirect về homepage
       this.router.navigate(['/homepage']);
       return false;
     }
+    // Chưa đăng nhập thì cho phép truy cập trang login/register
+    return true;
   }
 }

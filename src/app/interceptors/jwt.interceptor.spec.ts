@@ -46,4 +46,14 @@ describe('JwtInterceptor (white-box condition coverage)', () => {
     const interceptedReq = (next.handle as ReturnType<typeof vi.fn>).mock.calls[0][0] as HttpRequest<unknown>;
     expect(interceptedReq.headers.has('Authorization')).toBe(false);
   });
+
+  it('does not add Authorization header for Cloudinary upload requests', () => {
+    authServiceMock.getToken.mockReturnValue('abc.def.ghi');
+    const req = new HttpRequest('POST', 'https://api.cloudinary.com/v1_1/demo/auto/upload', {});
+
+    interceptor.intercept(req, next).subscribe();
+
+    const interceptedReq = (next.handle as ReturnType<typeof vi.fn>).mock.calls[0][0] as HttpRequest<unknown>;
+    expect(interceptedReq.headers.has('Authorization')).toBe(false);
+  });
 });

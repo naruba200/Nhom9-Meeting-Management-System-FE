@@ -1,14 +1,19 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, map, Observable, tap } from 'rxjs';
+import { BehaviorSubject, concatMap, from, map, Observable, of, tap, toArray } from 'rxjs';
 import {
   AgendaItem,
   AgendaItemApiResponse,
+  AttachmentUploadSignatureRequest,
+  AttachmentUploadSignatureResponse,
+  ConfirmMeetingAttachmentUploadRequest,
   CreateMeetingApiRequest,
   CreateMeetingRequest,
   InviteMeetingRequest,
   MeetingAttendeeApiResponse,
   Meeting,
+  MeetingAttachment,
+  MeetingAttachmentApiResponse,
   MeetingApiResponse,
   MeetingStatus,
   ParticipantInvitationStatus,
@@ -178,6 +183,78 @@ export class MeetingService {
     );
   }
 
+  deleteAttachmentFromMeeting(meetingId: number, attachmentId: number): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/${meetingId}/attachments/${attachmentId}`).pipe(
+      tap(() => {
+        const currentMeetings = this.meetingsSubject.getValue();
+        this.meetingsSubject.next(
+          currentMeetings.map((meeting) => {
+            if (meeting.id !== meetingId) {
+              return meeting;
+            }
+
+            return {
+              ...meeting,
+              attachments: (meeting.attachments || []).filter((attachment) => attachment.id !== attachmentId),
+            };
+          })
+        );
+      })
+    );
+  }
+
+  uploadAttachmentsToMeeting(meetingId: number, files: File[]): Observable<MeetingAttachment[]> {
+    if (!files.length) {
+      return of([]);
+    }
+
+    return from(files).pipe(
+      concatMap((file) => this.uploadSingleAttachment(meetingId, file)),
+      toArray()
+    );
+  }
+
+  private uploadSingleAttachment(meetingId: number, file: File): Observable<MeetingAttachment> {
+    const signaturePayload: AttachmentUploadSignatureRequest = { fileName: file.name };
+
+    return this.http
+      .post<AttachmentUploadSignatureResponse>(`${this.apiUrl}/${meetingId}/attachments/signature`, signaturePayload)
+      .pipe(
+        concatMap((signature) => this.uploadToCloudinary(file, signature)),
+        concatMap((uploadResult) => {
+          const confirmPayload: ConfirmMeetingAttachmentUploadRequest = {
+            fileName: file.name,
+            fileType: file.type || undefined,
+            fileSizeBytes: file.size,
+            cloudPublicId: uploadResult.public_id,
+            secureUrl: uploadResult.secure_url,
+          };
+
+          return this.http.post<MeetingAttachmentApiResponse>(
+            `${this.apiUrl}/${meetingId}/attachments/confirm`,
+            confirmPayload
+          );
+        }),
+        map((savedAttachment) => this.mapAttachment(savedAttachment))
+      );
+  }
+
+  private uploadToCloudinary(
+    file: File,
+    signature: AttachmentUploadSignatureResponse
+  ): Observable<{ secure_url: string; public_id: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('api_key', signature.apiKey);
+    formData.append('timestamp', String(signature.timestamp));
+    formData.append('signature', signature.signature);
+    formData.append('folder', signature.folder);
+    formData.append('public_id', signature.publicId);
+
+    const uploadUrl = `https://api.cloudinary.com/v1_1/${signature.cloudName}/auto/upload`;
+    return this.http.post<{ secure_url: string; public_id: string }>(uploadUrl, formData);
+  }
+
   private toApiDateTime(date: string, time: string): string {
     return `${date}T${time}:00`;
   }
@@ -200,7 +277,20 @@ export class MeetingService {
       agendaItems: (item.agendaItems ?? [])
         .map((agendaItem) => this.mapAgendaItem(agendaItem))
         .sort((a, b) => a.itemOrder - b.itemOrder),
+      attachments: (item.attachments ?? []).map((attachment) => this.mapAttachment(attachment)),
       totalAgendaDurationMinutes: item.totalAgendaDurationMinutes ?? 0,
+    };
+  }
+
+  private mapAttachment(item: MeetingAttachmentApiResponse): MeetingAttachment {
+    return {
+      id: item.id,
+      fileName: item.fileName,
+      fileType: item.fileType,
+      fileSizeBytes: item.fileSizeBytes,
+      cloudUploadUrl: item.cloudUploadUrl,
+      cloudPublicId: item.cloudPublicId,
+      cloudUploadStatus: item.cloudUploadStatus,
     };
   }
 

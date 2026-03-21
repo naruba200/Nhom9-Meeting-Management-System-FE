@@ -2,10 +2,11 @@ import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormsModule, FormBuilder, FormGroup, Validators, FormArray } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
-import { finalize, Subscription } from 'rxjs';
+import { concatMap, finalize, map, of, Subscription } from 'rxjs';
 import { MeetingService } from '../../../services/meeting.service';
 import { AuthService } from '../../../services/auth.service';
 import { GoogleLinkStatusResponse } from '../../../models/auth.models';
+import { ToastService } from '../../../services/toast.service';
 
 @Component({
   selector: 'app-create-meeting',
@@ -22,6 +23,7 @@ export class CreateMeetingComponent implements OnInit, OnDestroy {
   participantEmail = '';
   currentUserEmail = '';
   googleStatus: GoogleLinkStatusResponse | null = null;
+  selectedAttachmentFiles: File[] = [];
   agendaDragIndex: number | null = null;
   private readonly subscriptions: Subscription[] = [];
 
@@ -30,6 +32,7 @@ export class CreateMeetingComponent implements OnInit, OnDestroy {
     private meetingService: MeetingService,
     private authService: AuthService,
     private cdr: ChangeDetectorRef,
+    private toastService: ToastService,
   ) {
     this.meetingForm = this.fb.group({
       title: ['', [Validators.required, Validators.minLength(3)]],
@@ -112,6 +115,10 @@ export class CreateMeetingComponent implements OnInit, OnDestroy {
     }, 0);
   }
 
+  get totalAttachmentSizeBytes(): number {
+    return this.selectedAttachmentFiles.reduce((sum, file) => sum + file.size, 0);
+  }
+
   get isGoogleLinked(): boolean {
     return !!this.googleStatus?.linked;
   }
@@ -119,7 +126,6 @@ export class CreateMeetingComponent implements OnInit, OnDestroy {
   private applyGoogleStatus(status: GoogleLinkStatusResponse): void {
     this.googleStatus = status;
     this.updateSyncControlByGoogleLink(!!status.linked);
-    this.cdr.detectChanges();
   }
 
   private updateSyncControlByGoogleLink(isLinked: boolean): void {
@@ -258,15 +264,33 @@ export class CreateMeetingComponent implements OnInit, OnDestroy {
       externalMeetingLink: formValue.externalMeetingLink || '',
       timezone: formValue.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
     })
-    .pipe(finalize(() => {
-      this.isSubmitting = false;
-      this.cdr.detectChanges();
-    }))
+    .pipe(
+      concatMap((createdMeeting) => {
+        if (this.selectedAttachmentFiles.length === 0) {
+          return of(createdMeeting);
+        }
+
+        return this.meetingService
+          .uploadAttachmentsToMeeting(createdMeeting.id, this.selectedAttachmentFiles)
+          .pipe(
+            concatMap(() => this.meetingService.loadMeetings()),
+            map(() => createdMeeting)
+          );
+      }),
+      finalize(() => {
+        this.isSubmitting = false;
+        this.cdr.detectChanges();
+      })
+    )
     .subscribe({
       next: () => {
-        this.successMessage = formValue.syncWithGoogleCalendar
+        const baseMessage = formValue.syncWithGoogleCalendar
           ? 'Tạo cuộc họp thành công, đã đồng bộ Google Calendar và tạo link Google Meet!'
           : 'Tạo cuộc họp thành công với link họp trực tuyến!';
+        this.successMessage = this.selectedAttachmentFiles.length > 0
+          ? `${baseMessage} Tài liệu đã được tải lên Cloudinary.`
+          : baseMessage;
+        this.toastService.success(this.successMessage);
         this.resetForm();
         this.cdr.detectChanges();
 
@@ -285,6 +309,7 @@ export class CreateMeetingComponent implements OnInit, OnDestroy {
           this.errorMessage = 'Google token đã hết hạn hoặc không hợp lệ. Vui lòng liên kết lại trong phần Cài đặt.';
         }
 
+        this.toastService.error(this.errorMessage);
         this.cdr.detectChanges();
       }
     });
@@ -293,6 +318,15 @@ export class CreateMeetingComponent implements OnInit, OnDestroy {
   private extractErrorMessage(error: HttpErrorResponse): string {
     if (typeof error.error === 'string' && error.error.trim()) {
       return error.error;
+    }
+
+    if (
+      error.error &&
+      typeof error.error === 'object' &&
+      error.error.error &&
+      typeof error.error.error.message === 'string'
+    ) {
+      return error.error.error.message;
     }
 
     if (error.error && typeof error.error === 'object' && typeof error.error.message === 'string') {
@@ -318,6 +352,67 @@ export class CreateMeetingComponent implements OnInit, OnDestroy {
     }
     this.agendaDragIndex = null;
     this.participantEmail = '';
+    this.selectedAttachmentFiles = [];
+  }
+
+  onAttachmentSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const files = input.files;
+
+    if (!files || files.length === 0) {
+      return;
+    }
+
+    const maxFileSizeBytes = 50 * 1024 * 1024;
+    const maxTotalFiles = 10;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files.item(i);
+      if (!file) {
+        continue;
+      }
+
+      if (this.selectedAttachmentFiles.length >= maxTotalFiles) {
+        this.errorMessage = 'Tối đa 10 tài liệu cho mỗi cuộc họp.';
+        break;
+      }
+
+      if (file.size > maxFileSizeBytes) {
+        this.errorMessage = `Tài liệu "${file.name}" vượt quá 50MB.`;
+        continue;
+      }
+
+      const duplicate = this.selectedAttachmentFiles.some(
+        (existingFile) =>
+          existingFile.name === file.name &&
+          existingFile.size === file.size &&
+          existingFile.type === file.type
+      );
+
+      if (duplicate) {
+        continue;
+      }
+
+      this.selectedAttachmentFiles.push(file);
+    }
+
+    input.value = '';
+  }
+
+  removeAttachment(index: number): void {
+    this.selectedAttachmentFiles = this.selectedAttachmentFiles.filter((_, currentIndex) => currentIndex !== index);
+  }
+
+  formatFileSize(sizeBytes: number): string {
+    if (sizeBytes < 1024) {
+      return `${sizeBytes} B`;
+    }
+
+    if (sizeBytes < 1024 * 1024) {
+      return `${(sizeBytes / 1024).toFixed(1)} KB`;
+    }
+
+    return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   private createAgendaItemGroup(): FormGroup {
@@ -379,7 +474,6 @@ export class CreateMeetingComponent implements OnInit, OnDestroy {
       error: () => {
         this.googleStatus = null;
         this.updateSyncControlByGoogleLink(false);
-        this.cdr.detectChanges();
       },
     });
     this.subscriptions.push(sub);

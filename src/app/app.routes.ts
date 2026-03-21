@@ -3,7 +3,6 @@ import { LoginComponent } from './components/login/login.component';
 import { RegisterComponent } from './components/register/register.component';
 import { VerifyOtpComponent } from './components/verify-otp/verify-otp.component';
 import { ForgotPasswordComponent } from './components/forgot-password/forgot-password.component';
-import { DashboardComponent } from './components/dashboard/dashboard.component';
 import { HomepageComponent } from './components/homepage/homepage.component';
 import { MeetingComponent } from './components/meeting/meeting.component';
 import { MeetingHistoryComponent } from './components/meeting/meeting-history/meeting-history.component';
@@ -16,14 +15,14 @@ import { InvitationsHistoryComponent } from './components/invitations-history/in
 import { AdminDashboardComponent } from './components/admin/admin-dashboard/admin-dashboard.component';
 import { AuthGuard } from './guards/auth.guard';
 import { AdminGuard } from './guards/admin.guard';
+import { NoAuthGuard } from './guards/no-auth.guard';
 
 export const routes: Routes = [
   { path: '', redirectTo: '/login', pathMatch: 'full' },
-  { path: 'login', component: LoginComponent },
-  { path: 'register', component: RegisterComponent },
-  { path: 'verify-otp', component: VerifyOtpComponent },
-  { path: 'forgot-password', component: ForgotPasswordComponent },
-  { path: 'dashboard', component: DashboardComponent, canActivate: [AuthGuard] },
+  { path: 'login', component: LoginComponent, canActivate: [NoAuthGuard] },
+  { path: 'register', component: RegisterComponent, canActivate: [NoAuthGuard] },
+  { path: 'verify-otp', component: VerifyOtpComponent, canActivate: [NoAuthGuard] },
+  { path: 'forgot-password', component: ForgotPasswordComponent, canActivate: [NoAuthGuard] },
   { path: 'homepage', component: HomepageComponent, canActivate: [AuthGuard] },
   { path: 'meeting', component: MeetingComponent, canActivate: [AuthGuard] },
   { path: 'meeting/history', component: MeetingHistoryComponent, canActivate: [AuthGuard] },

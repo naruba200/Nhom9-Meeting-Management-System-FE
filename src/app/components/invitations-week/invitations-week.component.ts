@@ -5,6 +5,7 @@ import { RouterModule } from '@angular/router';
 import { NavbarComponent } from '../navbar/navbar.component';
 import { InvitationService } from '../../services/invitation.service';
 import { InvitationItem } from '../../models/invitation.models';
+import { ToastService } from '../../services/toast.service';
 
 @Component({
   selector: 'app-invitations-week',
@@ -26,7 +27,8 @@ export class InvitationsWeekComponent implements OnInit {
 
   constructor(
     private invitationService: InvitationService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private toastService: ToastService,
   ) {}
 
   ngOnInit(): void {
@@ -65,12 +67,14 @@ export class InvitationsWeekComponent implements OnInit {
     this.invitationService.acceptInvitation(invitation.attendeeId).subscribe({
       next: () => {
         this.successMessage = `Đã chấp nhận lời mời: ${invitation.meetingTitle}`;
+        this.toastService.success(this.successMessage);
         this.actionLoadingId = null;
         this.cdr.detectChanges();
         this.loadInvitations();
       },
       error: (error) => {
         this.errorMessage = error?.error?.message || 'Không thể chấp nhận lời mời.';
+        this.toastService.error(this.errorMessage);
         this.actionLoadingId = null;
         this.cdr.detectChanges();
       },
@@ -107,6 +111,7 @@ export class InvitationsWeekComponent implements OnInit {
     this.invitationService.declineInvitation(invitation.attendeeId, { reason }).subscribe({
       next: () => {
         this.successMessage = `Đã từ chối lời mời: ${invitation.meetingTitle}`;
+        this.toastService.warning(this.successMessage);
         this.actionLoadingId = null;
         this.cancelDeclineForm();
         this.cdr.detectChanges();
@@ -114,6 +119,7 @@ export class InvitationsWeekComponent implements OnInit {
       },
       error: (error) => {
         this.declineError = error?.error?.message || 'Không thể từ chối lời mời.';
+        this.toastService.error(this.declineError);
         this.actionLoadingId = null;
         this.cdr.detectChanges();
       },
