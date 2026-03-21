@@ -1,6 +1,9 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import { Subscription } from 'rxjs';
+import { MeetingService } from '../../services/meeting.service';
+import { Meeting } from '../../models/meeting.models';
 
 interface CalendarEvent {
   id: string;
@@ -25,7 +28,7 @@ interface CalendarCategory {
   templateUrl: './calendar.component.html',
   styleUrls: ['./calendar.component.css']
 })
-export class CalendarComponent implements OnInit {
+export class CalendarComponent implements OnInit, OnDestroy {
   currentDate: Date = new Date();
   selectedDate: Date = new Date();
   viewMode: 'day' | 'week' | 'month' = 'week';
@@ -37,22 +40,28 @@ export class CalendarComponent implements OnInit {
   miniCalendarMonth: Date = new Date();
   
   categories: CalendarCategory[] = [
-    { id: '1', name: 'Cuộc họp', color: '#4285f4', checked: true },
-    { id: '2', name: 'Công việc', color: '#0f9d58', checked: true },
-    { id: '3', name: 'Cá nhân', color: '#f4b400', checked: true },
-    { id: '4', name: 'Quan trọng', color: '#db4437', checked: true },
-    { id: '5', name: 'Nhắc nhở', color: '#9c27b0', checked: true }
+    { id: 'meeting', name: 'Cuộc họp', color: '#4285f4', checked: true }
   ];
   
   events: CalendarEvent[] = [];
   weekDates: Date[] = [];
+  loading = false;
+  errorMessage = '';
+  private readonly subscriptions: Subscription[] = [];
   
   showCreateModal: boolean = false;
+
+  constructor(private meetingService: MeetingService) {}
 
   ngOnInit(): void {
     this.generateMiniCalendar();
     this.generateWeekDates();
-    this.generateSampleEvents();
+    this.subscribeMeetings();
+    this.loadMeetings();
+  }
+
+  ngOnDestroy(): void {
+    this.subscriptions.forEach((sub) => sub.unsubscribe());
   }
 
   generateMiniCalendar(): void {
@@ -94,60 +103,46 @@ export class CalendarComponent implements OnInit {
     return d;
   }
 
-  generateSampleEvents(): void {
-    const today = new Date();
-    const startOfWeek = this.getStartOfWeek(today);
-    
-    this.events = [
-      {
-        id: '1',
-        title: 'Sprint Planning',
-        date: new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate() + 1),
-        startHour: 9,
-        endHour: 11,
-        color: '#4285f4'
+  private subscribeMeetings(): void {
+    const sub = this.meetingService.getMeetings().subscribe((meetings) => {
+      this.events = meetings
+        .filter((meeting) => meeting.status !== 'cancelled')
+        .map((meeting) => this.mapMeetingToCalendarEvent(meeting));
+    });
+    this.subscriptions.push(sub);
+  }
+
+  private loadMeetings(): void {
+    this.loading = true;
+    this.errorMessage = '';
+
+    const sub = this.meetingService.loadMeetings().subscribe({
+      next: () => {
+        this.loading = false;
       },
-      {
-        id: '2',
-        title: 'Team Standup',
-        date: new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate() + 2),
-        startHour: 10,
-        endHour: 11,
-        color: '#0f9d58'
+      error: (error) => {
+        this.errorMessage = error?.error?.message || 'Không thể tải dữ liệu cuộc họp cho lịch.';
+        this.loading = false;
       },
-      {
-        id: '3',
-        title: 'Design Review',
-        date: new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate() + 3),
-        startHour: 14,
-        endHour: 16,
-        color: '#f4b400'
-      },
-      {
-        id: '4',
-        title: 'Client Meeting',
-        date: new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate() + 4),
-        startHour: 15,
-        endHour: 17,
-        color: '#db4437'
-      },
-      {
-        id: '5',
-        title: 'Code Review',
-        date: new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate() + 5),
-        startHour: 11,
-        endHour: 12,
-        color: '#9c27b0'
-      },
-      {
-        id: '6',
-        title: 'Lunch Meeting',
-        date: new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate() + 2),
-        startHour: 12,
-        endHour: 13,
-        color: '#4285f4'
-      }
-    ];
+    });
+
+    this.subscriptions.push(sub);
+  }
+
+  private mapMeetingToCalendarEvent(meeting: Meeting): CalendarEvent {
+    const start = new Date(meeting.startTime);
+    const end = new Date(meeting.endTime);
+    const startHour = start.getHours();
+    const endHourRaw = end.getHours() + (end.getMinutes() > 0 ? 1 : 0);
+
+    return {
+      id: String(meeting.id),
+      title: meeting.title,
+      date: start,
+      startHour,
+      endHour: Math.max(startHour + 1, endHourRaw),
+      color: '#4285f4'
+    };
   }
 
   get currentMonthYear(): string {

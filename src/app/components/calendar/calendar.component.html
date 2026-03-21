@@ -130,6 +130,14 @@
 
     <!-- Week View -->
     <div class="flex-1 overflow-auto">
+      <div *ngIf="loading" class="mx-4 mt-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">
+        Đang tải dữ liệu cuộc họp...
+      </div>
+
+      <div *ngIf="!loading && errorMessage" class="mx-4 mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        {{ errorMessage }}
+      </div>
+
       <!-- Week Header -->
       <div class="sticky top-0 z-10 bg-white border-b border-gray-200">
         <div class="flex">

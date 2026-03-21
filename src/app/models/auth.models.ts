@@ -14,6 +14,7 @@ export interface AuthResponse {
   token: string;
   email: string;
   fullName: string;
+  role: string;
 }
 
 export interface OtpRequest {
@@ -42,4 +43,14 @@ export interface UserProfile {
 export interface UpdateProfileRequest {
   fullName?: string;
   phone?: string;
+}
+
+export interface GoogleLinkUrlResponse {
+  authorizationUrl: string;
+}
+
+export interface GoogleLinkStatusResponse {
+  linked: boolean;
+  googleAccountEmail?: string;
+  tokenExpiryAt?: string;
 }

@@ -1,130 +1,248 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable } from 'rxjs';
-import { Meeting, CreateMeetingRequest, Participant } from '../models/meeting.models';
-import { AuthService } from './auth.service';
+import { HttpClient } from '@angular/common/http';
+import { BehaviorSubject, map, Observable, tap } from 'rxjs';
+import {
+  AgendaItem,
+  AgendaItemApiResponse,
+  CreateMeetingApiRequest,
+  CreateMeetingRequest,
+  InviteMeetingRequest,
+  MeetingAttendeeApiResponse,
+  Meeting,
+  MeetingApiResponse,
+  MeetingStatus,
+  ParticipantInvitationStatus,
+  Participant,
+  UpdateMeetingRequest,
+} from '../models/meeting.models';
+import { environment } from '../../environments/environment';
 
 @Injectable({
   providedIn: 'root'
 })
 export class MeetingService {
-  private meetings: Meeting[] = [
-    {
-      id: '1',
-      title: 'Sprint Planning Meeting',
-      date: '2026-03-12',
-      startTime: '09:00',
-      endTime: '10:30',
-      participants: [
-        { email: 'john@example.com', name: 'John Doe' },
-        { email: 'jane@example.com', name: 'Jane Smith' },
-        { email: 'bob@example.com', name: 'Bob Wilson' },
-        { email: 'alice@example.com', name: 'Alice Brown' },
-        { email: 'charlie@example.com', name: 'Charlie Davis' },
-        { email: 'eve@example.com', name: 'Eve Miller' }
-      ],
-      status: 'scheduled',
-      createdAt: new Date(),
-      creatorEmail: 'admin@example.com'
-    },
-    {
-      id: '2',
-      title: 'Design Review',
-      date: '2026-03-13',
-      startTime: '14:00',
-      endTime: '15:00',
-      participants: [
-        { email: 'alice@example.com', name: 'Alice Brown' },
-        { email: 'charlie@example.com', name: 'Charlie Davis' }
-      ],
-      status: 'scheduled',
-      createdAt: new Date(),
-      creatorEmail: 'other@example.com'
-    },
-    {
-      id: '3',
-      title: 'Team Standup',
-      date: '2026-03-11',
-      startTime: '10:00',
-      endTime: '10:15',
-      participants: [
-        { email: 'team@example.com', name: 'Team Lead' },
-        { email: 'dev1@example.com', name: 'Developer 1' },
-        { email: 'dev2@example.com', name: 'Developer 2' },
-        { email: 'dev3@example.com', name: 'Developer 3' },
-        { email: 'dev4@example.com', name: 'Developer 4' },
-        { email: 'dev5@example.com', name: 'Developer 5' }
-      ],
-      status: 'scheduled',
-      createdAt: new Date(),
-      creatorEmail: 'admin@example.com'
-    }
-  ];
+  private readonly apiUrl = `${environment.apiUrl}/api/meetings`;
+  private readonly meetingsSubject = new BehaviorSubject<Meeting[]>([]);
 
-  private meetingsSubject = new BehaviorSubject<Meeting[]>(this.meetings);
-
-  constructor(private authService: AuthService) {
-    // Đặt người tạo cuộc họp đầu tiên là user hiện tại để test
-    const userInfo = this.authService.getUserInfo();
-    if (userInfo?.email && this.meetings.length > 0) {
-      this.meetings[0].creatorEmail = userInfo.email;
-      this.meetingsSubject.next(this.meetings);
-    }
-  }
+  constructor(private http: HttpClient) {}
 
   getMeetings(): Observable<Meeting[]> {
     return this.meetingsSubject.asObservable();
   }
 
-  getMeetingsValue(): Meeting[] {
-    return this.meetingsSubject.getValue();
+  loadMeetings(): Observable<Meeting[]> {
+    return this.http.get<MeetingApiResponse[]>(this.apiUrl).pipe(
+      map((apiMeetings) => apiMeetings.map((item) => this.mapFromApi(item))),
+      tap((meetings) => this.meetingsSubject.next(meetings))
+    );
   }
 
-  addMeeting(request: CreateMeetingRequest): Meeting {
+  addMeeting(request: CreateMeetingRequest): Observable<Meeting> {
     const participants: Participant[] = request.participantEmails.map(email => ({
       email,
       name: email.split('@')[0]
     }));
 
-    const userInfo = this.authService.getUserInfo();
-    const creatorEmail = userInfo?.email || 'unknown@example.com';
-
-    const newMeeting: Meeting = {
-      id: this.generateId(),
-      title: request.title,
-      date: request.date,
-      startTime: request.startTime,
-      endTime: request.endTime,
-      participants,
-      status: 'scheduled',
-      createdAt: new Date(),
-      creatorEmail: creatorEmail
+    const payload: CreateMeetingApiRequest = {
+      title: request.title.trim(),
+      agenda: request.agenda?.trim() || undefined,
+      agendaItems: request.agendaItems?.map((item, index) => ({
+        title: item.title.trim(),
+        durationMinutes: item.durationMinutes,
+        description: item.description?.trim() || undefined,
+        itemOrder: index + 1,
+      })),
+      startTime: this.toApiDateTime(request.date, request.startTime),
+      endTime: this.toApiDateTime(request.date, request.endTime),
+      syncWithGoogleCalendar: request.syncWithGoogleCalendar,
+      externalMeetingLink: request.externalMeetingLink?.trim() || undefined,
+      timezone: request.timezone?.trim() || Intl.DateTimeFormat().resolvedOptions().timeZone,
+      attendeeEmails: request.participantEmails,
     };
 
-    this.meetings = [newMeeting, ...this.meetings];
-    this.meetingsSubject.next(this.meetings);
-    return newMeeting;
-  }
-
-  updateMeeting(id: string, updates: Partial<Meeting>): void {
-    this.meetings = this.meetings.map(meeting =>
-      meeting.id === id ? { ...meeting, ...updates } : meeting
+    return this.http.post<MeetingApiResponse>(this.apiUrl, payload).pipe(
+      map((apiMeeting) => {
+        const mapped = this.mapFromApi(apiMeeting);
+        return {
+          ...mapped,
+          participants,
+        };
+      }),
+      tap((newMeeting) => {
+        this.meetingsSubject.next([newMeeting, ...this.meetingsSubject.getValue()]);
+      })
     );
-    this.meetingsSubject.next(this.meetings);
   }
 
-  cancelMeeting(id: string): void {
-    this.meetings = this.meetings.map(meeting =>
-      meeting.id === id ? { ...meeting, status: 'cancelled' as const } : meeting
+  cancelMeeting(id: number): Observable<Meeting> {
+    return this.http.put<MeetingApiResponse>(`${this.apiUrl}/${id}/cancel`, {}).pipe(
+      map((apiMeeting) => {
+        const previous = this.meetingsSubject.getValue().find((meeting) => meeting.id === id);
+        const mapped = this.mapFromApi(apiMeeting);
+        return {
+          ...mapped,
+          participants: previous?.participants ?? [],
+        };
+      }),
+      tap((cancelledMeeting) => {
+        this.meetingsSubject.next(
+          this.meetingsSubject.getValue().map((meeting) =>
+            meeting.id === cancelledMeeting.id ? { ...meeting, ...cancelledMeeting } : meeting
+          )
+        );
+      })
     );
-    this.meetingsSubject.next(this.meetings);
   }
 
-  deleteMeeting(id: string): void {
-    this.meetings = this.meetings.filter(meeting => meeting.id !== id);
-    this.meetingsSubject.next(this.meetings);
+  updateMeeting(id: number, request: UpdateMeetingRequest): Observable<Meeting> {
+    const payload = {
+      title: request.title.trim(),
+      agenda: request.agenda?.trim() || undefined,
+      agendaItems: request.agendaItems?.map((item, index) => ({
+        title: item.title.trim(),
+        durationMinutes: item.durationMinutes,
+        description: item.description?.trim() || undefined,
+        itemOrder: index + 1,
+      })),
+      startTime: this.toApiDateTime(request.date, request.startTime),
+      endTime: this.toApiDateTime(request.date, request.endTime),
+      externalMeetingLink: request.externalMeetingLink?.trim() || undefined,
+      syncWithGoogleCalendar: request.syncWithGoogleCalendar ?? false,
+      timezone: request.timezone?.trim() || Intl.DateTimeFormat().resolvedOptions().timeZone,
+    };
+
+    return this.http.put<MeetingApiResponse>(`${this.apiUrl}/${id}`, payload).pipe(
+      map((apiMeeting) => {
+        const previous = this.meetingsSubject.getValue().find((meeting) => meeting.id === id);
+        const mapped = this.mapFromApi(apiMeeting);
+        return {
+          ...mapped,
+          participants: previous?.participants ?? [],
+        };
+      }),
+      tap((updatedMeeting) => {
+        this.meetingsSubject.next(
+          this.meetingsSubject.getValue().map((meeting) =>
+            meeting.id === updatedMeeting.id ? { ...meeting, ...updatedMeeting } : meeting
+          )
+        );
+      })
+    );
   }
 
-  private generateId(): string {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2);
+  updateMeetingAgenda(id: number, agendaItems: AgendaItem[]): Observable<Meeting> {
+    const payload = {
+      agendaItems: agendaItems.map((item, index) => ({
+        title: item.title.trim(),
+        durationMinutes: item.durationMinutes,
+        description: item.description?.trim() || undefined,
+        itemOrder: index + 1,
+      })),
+    };
+
+    return this.http.put<MeetingApiResponse>(`${this.apiUrl}/${id}/agenda`, payload).pipe(
+      map((apiMeeting) => {
+        const previous = this.meetingsSubject.getValue().find((meeting) => meeting.id === id);
+        const mapped = this.mapFromApi(apiMeeting);
+        return {
+          ...mapped,
+          participants: previous?.participants ?? [],
+        };
+      }),
+      tap((updatedMeeting) => {
+        this.meetingsSubject.next(
+          this.meetingsSubject.getValue().map((meeting) =>
+            meeting.id === updatedMeeting.id ? { ...meeting, ...updatedMeeting } : meeting
+          )
+        );
+      })
+    );
+  }
+
+  inviteAttendees(id: number, request: InviteMeetingRequest): Observable<void> {
+    return this.http.post<void>(`${this.apiUrl}/${id}/invite`, request);
+  }
+
+  removeAttendee(id: number, attendeeEmail: string): Observable<Meeting> {
+    return this.http.delete<MeetingApiResponse>(`${this.apiUrl}/${id}/attendees`, {
+      params: { attendeeEmail: attendeeEmail.trim().toLowerCase() },
+    }).pipe(
+      map((apiMeeting) => this.mapFromApi(apiMeeting)),
+      tap((updatedMeeting) => {
+        this.meetingsSubject.next(
+          this.meetingsSubject.getValue().map((meeting) =>
+            meeting.id === updatedMeeting.id ? { ...meeting, ...updatedMeeting } : meeting
+          )
+        );
+      })
+    );
+  }
+
+  private toApiDateTime(date: string, time: string): string {
+    return `${date}T${time}:00`;
+  }
+
+  private mapFromApi(item: MeetingApiResponse): Meeting {
+    return {
+      id: item.id,
+      title: item.title,
+      agenda: item.agenda,
+      startTime: item.startTime,
+      endTime: item.endTime,
+      organizerEmail: item.organizerEmail,
+      meetingLink: item.meetingLink,
+      googleCalendarEventId: item.googleCalendarEventId,
+      syncedWithGoogleCalendar: item.syncedWithGoogleCalendar,
+      status: this.mapStatus(item.status),
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+      participants: (item.attendees ?? []).map((attendee) => this.mapParticipant(attendee)),
+      agendaItems: (item.agendaItems ?? [])
+        .map((agendaItem) => this.mapAgendaItem(agendaItem))
+        .sort((a, b) => a.itemOrder - b.itemOrder),
+      totalAgendaDurationMinutes: item.totalAgendaDurationMinutes ?? 0,
+    };
+  }
+
+  private mapAgendaItem(item: AgendaItemApiResponse): AgendaItem {
+    return {
+      id: item.id,
+      title: item.title,
+      durationMinutes: item.durationMinutes,
+      description: item.description,
+      itemOrder: item.itemOrder,
+    };
+  }
+
+  private mapParticipant(attendee: MeetingAttendeeApiResponse): Participant {
+    return {
+      email: attendee.email,
+      name: attendee.email.split('@')[0],
+      status: this.mapParticipantStatus(attendee.status),
+      responseReason: attendee.responseReason,
+      invitedAt: attendee.invitedAt,
+      respondedAt: attendee.respondedAt,
+    };
+  }
+
+  private mapParticipantStatus(status: MeetingAttendeeApiResponse['status']): ParticipantInvitationStatus {
+    const statusMap: Record<MeetingAttendeeApiResponse['status'], ParticipantInvitationStatus> = {
+      PENDING: 'pending',
+      ACCEPTED: 'accepted',
+      DECLINED: 'declined',
+    };
+
+    return statusMap[status];
+  }
+
+  private mapStatus(status: MeetingApiResponse['status']): MeetingStatus {
+    const statusMap: Record<MeetingApiResponse['status'], MeetingStatus> = {
+      SCHEDULED: 'scheduled',
+      IN_PROGRESS: 'in_progress',
+      COMPLETED: 'completed',
+      CANCELLED: 'cancelled',
+    };
+
+    return statusMap[status];
   }
 }

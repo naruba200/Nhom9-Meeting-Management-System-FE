@@ -34,6 +34,16 @@ export class VerifyOtpComponent {
     const urlParams = new URLSearchParams(window.location.search);
     this.email = urlParams.get('email') || savedEmail || '';
     this.otpData.email = this.email;
+
+    // Lấy OTP từ URL nếu có (từ link xác thực trong email)
+    const otpFromUrl = urlParams.get('otp');
+    if (otpFromUrl) {
+      this.otpData.otp = otpFromUrl;
+      // Tự động xác thực nếu có cả email và otp từ URL
+      if (this.email && otpFromUrl) {
+        this.onSubmit();
+      }
+    }
   }
 
   onSubmit(): void {

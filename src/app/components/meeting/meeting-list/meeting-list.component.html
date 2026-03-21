@@ -1,20 +1,24 @@
 <div class="space-y-4">
   <h2 class="text-2xl font-bold text-gray-800 mb-6 font-['Inter']">Danh sách cuộc họp</h2>
+
+  <div *ngIf="errorMessage"
+       class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    {{ errorMessage }}
+  </div>
   
   <!-- Empty State -->
-  <div *ngIf="meetings.length === 0" class="text-center py-12 bg-white rounded-xl shadow-sm">
+  <div *ngIf="activeMeetings.length === 0" class="text-center py-12 bg-white rounded-xl shadow-sm">
     <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
     </svg>
-    <p class="text-gray-500 text-lg">Chưa có cuộc họp nào</p>
-    <p class="text-gray-400 text-sm mt-2">Tạo cuộc họp mới bằng form bên phải</p>
+    <p class="text-gray-500 text-lg">Không còn cuộc họp đang hoạt động</p>
+    <p class="text-gray-400 text-sm mt-2">Các cuộc họp đã hoàn thành hoặc đã hủy nằm ở trang Lịch sử cuộc họp</p>
   </div>
 
   <!-- Meeting Cards -->
-  <div *ngFor="let meeting of meetings" 
+  <div *ngFor="let meeting of activeMeetings" 
        (click)="openDetailModal(meeting)"
-       class="bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300 p-5 border border-gray-100 cursor-pointer"
-       [class.opacity-60]="meeting.status === 'cancelled'">
+       class="bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300 p-5 border border-gray-100 cursor-pointer">
     
     <!-- Header -->
     <div class="flex justify-between items-start mb-4">
@@ -30,7 +34,7 @@
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
-            {{ formatDate(meeting.date) }}
+            {{ formatDate(meeting.startTime) }}
           </span>
           <span class="flex items-center gap-1">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -39,6 +43,20 @@
             {{ formatTime(meeting.startTime, meeting.endTime) }}
           </span>
         </div>
+      </div>
+
+      <div *ngIf="meeting.meetingLink" class="mb-4">
+        <a [href]="meeting.meetingLink"
+           target="_blank"
+           rel="noopener noreferrer"
+           (click)="$event.stopPropagation()"
+           class="inline-flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:underline">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 3h7m0 0v7m0-7L10 14" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5v14h14" />
+          </svg>
+          Vào phòng họp online
+        </a>
       </div>
     </div>
 
@@ -60,8 +78,22 @@
       </div>
     </div>
 
+    <div *ngIf="meeting.agendaItems.length" class="mb-4 rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-700">
+      Agenda: <span class="font-medium">{{ meeting.agendaItems.length }} mục</span>
+      | Tổng thời lượng: <span class="font-medium">{{ getAgendaTotalMinutes(meeting) }} phút</span>
+    </div>
+
     <!-- Actions for Creator -->
     <div *ngIf="isCreator(meeting)" class="flex gap-2 pt-3 border-t border-gray-100">
+      <button (click)="onManageAgenda(meeting); $event.stopPropagation()"
+              [disabled]="meeting.status === 'cancelled' || meeting.status === 'completed'"
+              class="flex items-center gap-1 px-3 py-2 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700 active:bg-violet-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-md">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+        </svg>
+        Agenda
+      </button>
+
       <button (click)="onInvite(meeting); $event.stopPropagation()"
               [disabled]="meeting.status === 'cancelled'"
               class="flex items-center gap-1 px-3 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 active:bg-indigo-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-md">
@@ -72,7 +104,7 @@
       </button>
       
       <button (click)="onEdit(meeting); $event.stopPropagation()"
-              [disabled]="meeting.status === 'cancelled'"
+              [disabled]="meeting.status === 'cancelled' || meeting.status === 'completed'"
               class="flex items-center gap-1 px-3 py-2 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600 active:bg-amber-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-md">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -98,7 +130,7 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
         </svg>
-        Xem
+        Xem chi tiết
       </button>
     </div>
   </div>
@@ -146,7 +178,7 @@
             </div>
             <div>
               <p class="text-sm text-gray-500">Ngày họp</p>
-              <p class="font-semibold text-gray-900">{{ formatDate(selectedMeeting.date) }}</p>
+              <p class="font-semibold text-gray-900">{{ formatDate(selectedMeeting.startTime) }}</p>
             </div>
           </div>
         </div>
@@ -174,6 +206,9 @@
           </svg>
           Người tham gia ({{ selectedMeeting.participants.length }})
         </h3>
+        <div *ngIf="participantActionError" class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {{ participantActionError }}
+        </div>
         <div class="space-y-2 max-h-60 overflow-y-auto">
           <div *ngFor="let participant of selectedMeeting.participants; let i = index"
                class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
@@ -183,9 +218,45 @@
             <div class="flex-1">
               <p class="font-medium text-gray-900">{{ participant.name || 'Không có tên' }}</p>
               <p class="text-sm text-gray-500">{{ participant.email }}</p>
+              <div class="mt-1 flex flex-wrap items-center gap-2">
+                <span [class]="'rounded-full px-2 py-0.5 text-xs font-medium ' + getParticipantStatusClass(participant.status)">
+                  {{ getParticipantStatusText(participant.status) }}
+                </span>
+                <span *ngIf="participant.responseReason" class="text-xs text-red-600">
+                  Lý do: {{ participant.responseReason }}
+                </span>
+              </div>
             </div>
+            <button *ngIf="isCreator(selectedMeeting)"
+                    type="button"
+                    (click)="onRemoveParticipant(selectedMeeting, participant.email)"
+                    [disabled]="isRemovingParticipant"
+                    class="ml-2 rounded-md px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed">
+              {{ isRemovingParticipant && removingParticipantEmail === participant.email.toLowerCase() ? 'Đang xóa...' : 'Xóa' }}
+            </button>
           </div>
         </div>
+      </div>
+
+      <div class="rounded-xl border border-indigo-100 bg-indigo-50 p-4">
+        <div class="mb-3 flex items-center justify-between">
+          <h3 class="text-lg font-semibold text-indigo-900">Meeting Agenda</h3>
+          <span class="text-sm font-medium text-indigo-700">{{ getAgendaTotalMinutes(selectedMeeting) }} phút</span>
+        </div>
+
+        <div *ngIf="selectedMeeting.agendaItems.length > 0" class="space-y-2">
+          <div *ngFor="let agendaItem of selectedMeeting.agendaItems" class="rounded-lg bg-white p-3">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <p class="font-medium text-gray-900">{{ agendaItem.itemOrder }}. {{ agendaItem.title }}</p>
+              <span class="text-xs font-medium text-indigo-700">{{ agendaItem.durationMinutes }} phút</span>
+            </div>
+            <p *ngIf="agendaItem.description" class="mt-1 text-sm text-gray-700">{{ agendaItem.description }}</p>
+          </div>
+        </div>
+
+        <p *ngIf="selectedMeeting.agendaItems.length === 0" class="rounded-lg bg-white p-3 text-sm text-gray-600">
+          Cuộc họp này chưa có agenda item.
+        </p>
       </div>
 
       <!-- Meeting Info -->
@@ -199,7 +270,14 @@
           <div>
             <p class="font-medium text-blue-900">Thông tin cuộc họp</p>
             <p class="text-sm text-blue-700 mt-1">ID: {{ selectedMeeting.id }}</p>
-            <p class="text-sm text-blue-700">Người tạo: {{ selectedMeeting.creatorEmail }}</p>
+            <p class="text-sm text-blue-700">Người tạo: {{ selectedMeeting.organizerEmail }}</p>
+            <p class="text-sm text-blue-700">Đồng bộ Google Calendar: {{ selectedMeeting.syncedWithGoogleCalendar ? 'Có' : 'Không' }}</p>
+            <p *ngIf="selectedMeeting.googleCalendarEventId" class="text-sm text-blue-700">
+              Google Event ID: {{ selectedMeeting.googleCalendarEventId }}
+            </p>
+            <p *ngIf="selectedMeeting.meetingLink" class="text-sm text-blue-700 break-all">
+              Link họp: {{ selectedMeeting.meetingLink }}
+            </p>
           </div>
         </div>
       </div>
@@ -213,11 +291,379 @@
       </button>
       <div *ngIf="isCreator(selectedMeeting)" class="flex gap-2">
         <button (click)="onEdit(selectedMeeting); closeDetailModal()"
-                [disabled]="selectedMeeting.status === 'cancelled'"
+          [disabled]="selectedMeeting.status === 'cancelled' || selectedMeeting.status === 'completed'"
                 class="px-4 py-2 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
           Chỉnh sửa
         </button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Meeting Modal -->
+<div *ngIf="showEditModal"
+     class="modal-backdrop fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+     (click)="onEditModalBackdropClick($event)">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-xl w-full mx-4 max-h-[90vh] flex flex-col">
+    <div class="p-6 border-b border-gray-100 flex items-center justify-between">
+      <h3 class="text-xl font-semibold text-gray-900">Chỉnh sửa cuộc họp</h3>
+      <button (click)="closeEditModal()"
+              class="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-100 rounded-lg">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+
+    <div class="p-6 space-y-4 overflow-y-auto">
+      <div *ngIf="editErrorMessage" class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        {{ editErrorMessage }}
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Tiêu đề</label>
+        <input type="text"
+               [(ngModel)]="editForm.title"
+               [disabled]="isUpdatingMeeting"
+               class="w-full rounded-xl border border-gray-300 px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" />
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Nội dung</label>
+        <textarea [(ngModel)]="editForm.agenda"
+                  [disabled]="isUpdatingMeeting"
+                  rows="3"
+                  class="w-full rounded-xl border border-gray-300 px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"></textarea>
+      </div>
+
+      <div class="rounded-xl border border-gray-200 p-4 bg-gray-50">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <p class="text-sm font-semibold text-gray-800">Meeting Agenda</p>
+            <p class="text-xs text-gray-500">Mở cửa sổ riêng để thêm/sửa/xóa và kéo-thả agenda item.</p>
+          </div>
+          <button type="button"
+                  (click)="openAgendaEditorModal()"
+                  [disabled]="isUpdatingMeeting"
+                  class="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+            Quản lý agenda
+          </button>
+        </div>
+        <p class="mt-2 text-sm text-indigo-700">
+          Tổng thời lượng hiện tại: <span class="font-semibold">{{ getEditAgendaTotalMinutes() }} phút</span>
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Ngày</label>
+          <input type="date"
+                 [(ngModel)]="editForm.date"
+                 [disabled]="isUpdatingMeeting"
+                 class="w-full rounded-xl border border-gray-300 px-3 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Bắt đầu</label>
+          <input type="time"
+                 [(ngModel)]="editForm.startTime"
+                 [disabled]="isUpdatingMeeting"
+                 class="w-full rounded-xl border border-gray-300 px-3 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Kết thúc</label>
+          <input type="time"
+                 [(ngModel)]="editForm.endTime"
+                 [disabled]="isUpdatingMeeting"
+                 class="w-full rounded-xl border border-gray-300 px-3 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" />
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Link họp trực tuyến</label>
+        <input type="url"
+               [(ngModel)]="editForm.externalMeetingLink"
+               [disabled]="isUpdatingMeeting || (selectedMeeting?.syncedWithGoogleCalendar ?? false)"
+               class="w-full rounded-xl border border-gray-300 px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" />
+        <p *ngIf="selectedMeeting?.syncedWithGoogleCalendar" class="mt-1 text-xs text-gray-500">
+          Cuộc họp đang đồng bộ Google Calendar nên link họp được quản lý tự động.
+        </p>
+      </div>
+
+      <!-- Google Calendar Sync Checkbox -->
+      <div *ngIf="selectedMeeting?.syncedWithGoogleCalendar" class="flex items-center gap-3 p-4 bg-blue-50 rounded-xl">
+        <input type="checkbox"
+               id="syncWithGoogleCalendar"
+               [(ngModel)]="editForm.syncWithGoogleCalendar"
+               [disabled]="isUpdatingMeeting"
+               class="w-5 h-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer" />
+        <label for="syncWithGoogleCalendar" class="flex-1 cursor-pointer">
+          <span class="text-sm font-medium text-gray-900">Đồng bộ thay đổi với Google Calendar</span>
+          <p class="text-xs text-gray-500 mt-0.5">Khi bật, thay đổi sẽ được cập nhật lên Google Calendar của bạn</p>
+        </label>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-500" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M19.5 3h-3V1.5h-1.5V3h-6V1.5H7.5V3h-3C3.675 3 3 3.675 3 4.5v15c0 .825.675 1.5 1.5 1.5h15c.825 0 1.5-.675 1.5-1.5v-15c0-.825-.675-1.5-1.5-1.5zm0 16.5h-15V8.25h15v11.25zM7.5 10.5h3v3h-3v-3zm4.5 0h3v3h-3v-3zm4.5 0h3v3h-3v-3z"/>
+        </svg>
+      </div>
+    </div>
+
+    <div class="p-6 border-t border-gray-100 flex justify-end gap-3">
+      <button (click)="closeEditModal()"
+              [disabled]="isUpdatingMeeting"
+              class="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50">
+        Hủy
+      </button>
+      <button (click)="submitEditMeeting()"
+              [disabled]="isUpdatingMeeting"
+              class="px-4 py-2 rounded-lg bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50">
+        {{ isUpdatingMeeting ? 'Đang lưu...' : 'Lưu thay đổi' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Agenda Editor Modal -->
+<div *ngIf="showAgendaEditorModal"
+     class="modal-backdrop fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]"
+     (click)="onAgendaEditorBackdropClick($event)">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full mx-4 max-h-[90vh] flex flex-col">
+    <div class="p-6 border-b border-gray-100 flex items-center justify-between">
+      <h3 class="text-xl font-semibold text-gray-900">Quản lý Meeting Agenda</h3>
+      <button (click)="closeAgendaEditorModal()"
+              class="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-100 rounded-lg">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+
+    <div class="p-6 overflow-y-auto space-y-4">
+      <div class="rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-700">
+        Tổng thời lượng: <span class="font-semibold">{{ getEditAgendaTotalMinutes() }} phút</span>
+      </div>
+
+      <div class="flex justify-end">
+        <button type="button"
+                (click)="addEditAgendaItem()"
+                  [disabled]="isSavingAgenda"
+                class="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+          + Thêm mục
+        </button>
+      </div>
+
+      <div class="space-y-3">
+        <div *ngFor="let agendaItem of editForm.agendaItems; let i = index"
+             draggable="true"
+             (dragstart)="onEditAgendaDragStart(i)"
+             (dragover)="onEditAgendaDragOver($event)"
+             (drop)="onEditAgendaDrop(i)"
+             (dragend)="onEditAgendaDragEnd()"
+             class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+          <div class="mb-2 flex items-center justify-between">
+            <p class="text-sm font-medium text-gray-700">Mục #{{ i + 1 }}</p>
+            <button type="button"
+                    (click)="removeEditAgendaItem(i)"
+                  [disabled]="isSavingAgenda"
+                    class="rounded-md p-1 text-red-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-50">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600">Tiêu đề mục</label>
+              <input type="text"
+                required
+                     [(ngModel)]="agendaItem.title"
+                #titleModel="ngModel"
+                     [ngModelOptions]="{standalone: true}"
+                maxlength="255"
+                     [disabled]="isSavingAgenda"
+                     class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" />
+              <p *ngIf="titleModel.invalid && (titleModel.touched || agendaValidationAttempted)"
+                 class="mt-1 text-xs text-red-600">
+                <span *ngIf="titleModel.errors?.['required']">Tiêu đề mục là bắt buộc.</span>
+                <span *ngIf="titleModel.errors?.['maxlength']">Tiêu đề mục tối đa 255 ký tự.</span>
+              </p>
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600">Thời lượng (phút)</label>
+              <input type="number"
+                required
+                     min="1"
+                step="1"
+                     [(ngModel)]="agendaItem.durationMinutes"
+                #durationModel="ngModel"
+                     [ngModelOptions]="{standalone: true}"
+                     [disabled]="isSavingAgenda"
+                     class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" />
+              <p *ngIf="(durationModel.invalid || isAgendaDurationInvalid(agendaItem.durationMinutes)) && (durationModel.touched || agendaValidationAttempted)"
+                 class="mt-1 text-xs text-red-600">
+                Thời lượng phải là số nguyên dương.
+              </p>
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600">Thứ tự</label>
+              <input type="number"
+                     [value]="i + 1"
+                     readonly
+                     class="w-full rounded-lg border border-gray-200 bg-gray-100 px-3 py-2 text-sm text-gray-500" />
+            </div>
+          </div>
+
+          <div class="mt-3">
+            <label class="mb-1 block text-xs font-medium text-gray-600">Mô tả chi tiết</label>
+            <textarea [(ngModel)]="agendaItem.description"
+                      #descriptionModel="ngModel"
+                      [ngModelOptions]="{standalone: true}"
+                      [disabled]="isSavingAgenda"
+                      required
+                      rows="2"
+                      maxlength="2000"
+                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"></textarea>
+            <p *ngIf="descriptionModel.invalid && (descriptionModel.touched || agendaValidationAttempted)"
+               class="mt-1 text-xs text-red-600">
+              <span *ngIf="descriptionModel.errors?.['required']">Mô tả chi tiết không được để trống.</span>
+              <span *ngIf="descriptionModel.errors?.['maxlength']">Mô tả chi tiết tối đa 2000 ký tự.</span>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <p *ngIf="!editForm.agendaItems || editForm.agendaItems.length === 0" class="text-sm text-gray-500">
+        Chưa có agenda item nào.
+      </p>
+    </div>
+
+    <div class="p-6 border-t border-gray-100 flex justify-end gap-2">
+      <button (click)="saveAgendaFromEditor()"
+          [disabled]="isAgendaSaveDisabled()"
+              class="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">
+        {{ isSavingAgenda ? 'Đang lưu...' : 'Lưu agenda' }}
+      </button>
+      <button (click)="closeAgendaEditorModal()"
+              [disabled]="isSavingAgenda"
+              class="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">
+        Đóng
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Invite Attendees Modal -->
+<div *ngIf="showInviteModal"
+     class="modal-backdrop fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+     (click)="onInviteModalBackdropClick($event)">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4">
+    <div class="p-6 border-b border-gray-100 flex items-center justify-between">
+      <h3 class="text-xl font-semibold text-gray-900">Mời người tham gia</h3>
+      <button (click)="closeInviteModal()"
+              class="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-100 rounded-lg">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+
+    <div class="p-6 space-y-4">
+      <div *ngIf="inviteErrorMessage" class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        {{ inviteErrorMessage }}
+      </div>
+      <div *ngIf="inviteSuccessMessage" class="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+        {{ inviteSuccessMessage }}
+      </div>
+
+      <!-- Email input row -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Email người được mời</label>
+        <div class="flex gap-2">
+          <input type="email"
+                 [(ngModel)]="inviteEmailInput"
+                 [disabled]="isInviting"
+                 (keyup.enter)="addInviteEmail()"
+                 placeholder="nhap@email.com"
+                 class="flex-1 rounded-xl border border-gray-300 px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" />
+          <button type="button"
+                  (click)="addInviteEmail()"
+                  [disabled]="isInviting"
+                  class="px-4 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 font-medium transition-colors">
+            Thêm
+          </button>
+        </div>
+        <p *ngIf="inviteEmailError" class="mt-1 text-xs text-red-600">{{ inviteEmailError }}</p>
+      </div>
+
+      <!-- Email list -->
+      <div *ngIf="inviteEmails.length > 0">
+        <p class="text-sm font-medium text-gray-700 mb-2">Danh sách sẽ mời ({{ inviteEmails.length }})</p>
+        <div class="space-y-1 max-h-48 overflow-y-auto">
+          <div *ngFor="let email of inviteEmails"
+               class="flex items-center justify-between bg-indigo-50 rounded-lg px-3 py-2">
+            <div class="flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              <span class="text-sm text-gray-800">{{ email }}</span>
+            </div>
+            <button type="button"
+                    (click)="removeInviteEmail(email)"
+                    [disabled]="isInviting"
+                    class="text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50 ml-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <p *ngIf="inviteEmails.length === 0 && !inviteSuccessMessage" class="text-sm text-gray-400 text-center py-2">
+        Chưa có email nào được thêm
+      </p>
+    </div>
+
+    <div class="p-6 border-t border-gray-100 flex justify-end gap-3">
+      <button (click)="closeInviteModal()"
+              [disabled]="isInviting"
+              class="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 transition-colors">
+        Đóng
+      </button>
+      <button (click)="submitInvite()"
+              [disabled]="isInviting || inviteEmails.length === 0"
+              class="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors font-medium">
+        {{ isInviting ? 'Đang gửi...' : 'Gửi lời mời' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div *ngIf="showConfirmModal"
+     class="modal-backdrop fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70]"
+     (click)="onConfirmModalBackdropClick($event)">
+  <div class="mx-4 w-full max-w-md rounded-2xl bg-white shadow-2xl">
+    <div class="border-b border-gray-100 p-6">
+      <h3 class="text-lg font-semibold text-gray-900">{{ confirmTitle }}</h3>
+    </div>
+
+    <div class="p-6">
+      <p class="text-sm leading-6 text-gray-700">{{ confirmMessage }}</p>
+    </div>
+
+    <div class="flex justify-end gap-3 border-t border-gray-100 p-6">
+      <button type="button"
+              (click)="closeConfirmModal()"
+              class="rounded-lg bg-gray-100 px-4 py-2 text-gray-700 hover:bg-gray-200">
+        Đóng
+      </button>
+      <button type="button"
+              (click)="confirmAction()"
+              [class]="confirmActionStyle === 'danger'
+                ? 'rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700'
+                : 'rounded-lg bg-amber-600 px-4 py-2 text-white hover:bg-amber-700'">
+        {{ confirmActionLabel }}
+      </button>
     </div>
   </div>
 </div>

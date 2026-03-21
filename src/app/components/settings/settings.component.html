@@ -2,7 +2,24 @@
   <div class="settings-card">
     <p class="settings-kicker">Tài khoản</p>
     <h1>Cài đặt</h1>
-    <p class="settings-copy">Trang cài đặt đang được chuẩn bị. Hiện tại bạn có thể quay lại trang cá nhân để cập nhật thông tin tài khoản.</p>
+    <p class="settings-copy">Liên kết tài khoản Google để hệ thống tự tạo Google Meet và đồng bộ Google Calendar khi tạo cuộc họp online.</p>
+
+    <div class="settings-copy" *ngIf="loadingStatus">Đang kiểm tra trạng thái liên kết Google...</div>
+
+    <div class="settings-copy" *ngIf="!loadingStatus && googleStatus?.linked">
+      Đã liên kết với Google: <strong>{{ googleStatus?.googleAccountEmail || 'Tài khoản Google của bạn' }}</strong>
+    </div>
+
+    <div class="settings-copy" *ngIf="!loadingStatus && !googleStatus?.linked">
+      Chưa liên kết Google. Bạn cần liên kết để bật tính năng tự tạo Google Meet.
+    </div>
+
+    <button class="settings-link" type="button" (click)="connectGoogle()" [disabled]="linkingGoogle">
+      {{ linkingGoogle ? 'Đang mở Google...' : (googleStatus?.linked ? 'Liên kết lại Google' : 'Liên kết Google') }}
+    </button>
+
+    <p class="settings-copy" *ngIf="feedbackMessage">{{ feedbackMessage }}</p>
+
     <a routerLink="/profile" class="settings-link">Mở trang cá nhân</a>
   </div>
 </div>

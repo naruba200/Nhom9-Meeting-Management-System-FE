@@ -25,6 +25,30 @@
   font-weight: 700;
 }
 
+.user-menu-avatar-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.user-menu-unread-badge {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: #ef4444;
+  border: 2px solid #ffffff;
+  color: #ffffff;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 700;
+}
+
 .user-menu-chevron {
   width: 1rem;
   height: 1rem;
@@ -66,6 +90,9 @@
 .user-menu-item {
   display: block;
   width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   text-align: left;
   padding: 0.75rem 0.85rem;
   border: 0;
@@ -83,4 +110,20 @@
 
 .user-menu-logout {
   color: #b91c1c;
+}
+
+.user-menu-item-badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 700;
+  flex-shrink: 0;
 }

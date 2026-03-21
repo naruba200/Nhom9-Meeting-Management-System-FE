@@ -5,12 +5,12 @@ import { FormsModule } from '@angular/forms';
 import { timeout, TimeoutError } from 'rxjs';
 import { AuthService } from '../../services/auth.service';
 import { UserProfile, UpdateProfileRequest } from '../../models/auth.models';
-import { UserMenuComponent } from '../user-menu/user-menu.component';
+import { NavbarComponent } from '../navbar/navbar.component';
 
 @Component({
   selector: 'app-profile',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, UserMenuComponent],
+  imports: [CommonModule, RouterModule, FormsModule, NavbarComponent],
   templateUrl: './profile.component.html',
   styleUrls: ['./profile.component.css']
 })
@@ -120,15 +120,18 @@ export class ProfileComponent implements OnInit {
     this.authService.updateProfile(this.editForm).subscribe({
       next: (profile) => {
         this.userProfile = profile;
+        this.authService.updateUserInfoFromProfile(profile);
         this.isEditing = false;
         this.isSaving = false;
         this.successMessage = 'Cập nhật thông tin thành công!';
         setTimeout(() => this.successMessage = '', 3000);
+        this.cdr.detectChanges();
       },
       error: (error) => {
         console.error('Error updating profile:', error);
         this.errorMessage = 'Không thể cập nhật thông tin. Vui lòng thử lại.';
         this.isSaving = false;
+        this.cdr.detectChanges();
       }
     });
   }

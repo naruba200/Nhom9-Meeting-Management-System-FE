@@ -14,7 +14,7 @@
       {{ errorMessage }}
     </div>
 
-    <form (ngSubmit)="onSubmit()" *ngIf="!showOtpVerification">
+    <form (ngSubmit)="onSubmit(registerForm)" #registerForm="ngForm" *ngIf="!showOtpVerification" novalidate>
       <div class="form-group">
         <label for="fullName">Họ và tên:</label>
         <input 
@@ -22,9 +22,15 @@
           id="fullName" 
           name="fullName" 
           [(ngModel)]="registerData.fullName" 
+          [disabled]="isLoading"
           required 
           placeholder="Nhập họ và tên của bạn"
+          #fullNameModel="ngModel"
+          [class.input-error]="fullNameModel.invalid && (fullNameModel.touched || registerForm.submitted)"
         />
+        <div class="field-error" *ngIf="fullNameModel.invalid && (fullNameModel.touched || registerForm.submitted)">
+          Vui lòng nhập họ và tên.
+        </div>
       </div>
 
       <div class="form-group">
@@ -34,10 +40,17 @@
           id="email" 
           name="email" 
           [(ngModel)]="registerData.email" 
+          [disabled]="isLoading"
           required 
           email
           placeholder="Nhập email của bạn"
+          #emailModel="ngModel"
+          [class.input-error]="emailModel.invalid && (emailModel.touched || registerForm.submitted)"
         />
+        <div class="field-error" *ngIf="emailModel.invalid && (emailModel.touched || registerForm.submitted)">
+          <span *ngIf="emailModel.errors?.['required']">Vui lòng nhập email.</span>
+          <span *ngIf="emailModel.errors?.['email']">Email không đúng định dạng.</span>
+        </div>
       </div>
 
       <div class="form-group">
@@ -47,9 +60,15 @@
           id="phone" 
           name="phone" 
           [(ngModel)]="registerData.phone" 
+          [disabled]="isLoading"
           required 
           placeholder="Nhập số điện thoại của bạn"
+          #phoneModel="ngModel"
+          [class.input-error]="phoneModel.invalid && (phoneModel.touched || registerForm.submitted)"
         />
+        <div class="field-error" *ngIf="phoneModel.invalid && (phoneModel.touched || registerForm.submitted)">
+          Vui lòng nhập số điện thoại.
+        </div>
       </div>
 
       <div class="form-group">
@@ -59,10 +78,17 @@
           id="password" 
           name="password" 
           [(ngModel)]="registerData.password" 
+          [disabled]="isLoading"
           required 
           minlength="6"
           placeholder="Nhập mật khẩu (tối thiểu 6 ký tự)"
+          #passwordModel="ngModel"
+          [class.input-error]="passwordModel.invalid && (passwordModel.touched || registerForm.submitted)"
         />
+        <div class="field-error" *ngIf="passwordModel.invalid && (passwordModel.touched || registerForm.submitted)">
+          <span *ngIf="passwordModel.errors?.['required']">Vui lòng nhập mật khẩu.</span>
+          <span *ngIf="passwordModel.errors?.['minlength']">Mật khẩu phải có ít nhất 6 ký tự.</span>
+        </div>
       </div>
 
       <div class="form-group">
@@ -72,9 +98,18 @@
           id="confirmPassword" 
           name="confirmPassword" 
           [(ngModel)]="confirmPassword" 
+          [disabled]="isLoading"
           required 
           placeholder="Nhập lại mật khẩu"
+          #confirmPasswordModel="ngModel"
+          [class.input-error]="confirmPasswordModel.invalid && (confirmPasswordModel.touched || registerForm.submitted)"
         />
+        <div class="field-error" *ngIf="confirmPasswordModel.invalid && (confirmPasswordModel.touched || registerForm.submitted)">
+          Vui lòng nhập lại mật khẩu.
+        </div>
+        <div class="field-error" *ngIf="registerData.password && confirmPassword && registerData.password !== confirmPassword">
+          Mật khẩu xác nhận không khớp.
+        </div>
       </div>
 
       <button 
@@ -92,14 +127,3 @@
     </div>
   </div>
 </div>
-
-@if (showErrorModal) {
-  <div class="error-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="register-error-title">
-    <div class="error-modal">
-      <div class="error-modal-icon" aria-hidden="true">⚠️</div>
-      <h3 id="register-error-title">Lỗi kết nối</h3>
-      <p>{{ apiErrorMessage }}</p>
-      <button class="btn btn-primary" (click)="closeErrorModal()" autofocus>Đóng</button>
-    </div>
-  </div>
-}

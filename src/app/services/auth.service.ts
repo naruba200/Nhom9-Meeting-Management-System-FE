@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { BehaviorSubject, Observable, tap } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { 
   LoginRequest, 
@@ -10,7 +10,9 @@ import {
   ForgotPasswordRequest, 
   ResetPasswordRequest,
   UserProfile,
-  UpdateProfileRequest
+  UpdateProfileRequest,
+  GoogleLinkStatusResponse,
+  GoogleLinkUrlResponse,
 } from '../models/auth.models';
 
 @Injectable({
@@ -18,8 +20,65 @@ import {
 })
 export class AuthService {
   private apiUrl = `${environment.apiUrl}/api/auth`;
+  private readonly GOOGLE_STATUS_KEY = 'googleLinkStatus';
+  private readonly ROLE_KEY = 'userRole';
+  private readonly USER_INFO_KEY = 'userInfo';
+  private readonly googleLinkStatus$ = new BehaviorSubject<GoogleLinkStatusResponse | null>(
+    this.readGoogleStatusFromStorage()
+  );
+  private readonly userInfo$ = new BehaviorSubject<{ email: string; fullName: string } | null>(
+    this.readUserInfoFromStorage() ?? this.readUserInfoFromToken()
+  );
+  readonly googleLinkStatus = this.googleLinkStatus$.asObservable();
+  readonly userInfo = this.userInfo$.asObservable();
 
   constructor(private http: HttpClient) {}
+
+  private readGoogleStatusFromStorage(): GoogleLinkStatusResponse | null {
+    try {
+      const stored = localStorage.getItem('googleLinkStatus');
+      return stored ? (JSON.parse(stored) as GoogleLinkStatusResponse) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private readUserInfoFromStorage(): { email: string; fullName: string } | null {
+    try {
+      const stored = localStorage.getItem(this.USER_INFO_KEY);
+      return stored ? (JSON.parse(stored) as { email: string; fullName: string }) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private readUserInfoFromToken(): { email: string; fullName: string } | null {
+    const token = this.getToken();
+    if (!token) return null;
+
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return {
+        email: payload.sub,
+        fullName: payload.fullName || ''
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private setUserInfo(userInfo: { email: string; fullName: string } | null): void {
+    this.userInfo$.next(userInfo);
+    try {
+      if (userInfo) {
+        localStorage.setItem(this.USER_INFO_KEY, JSON.stringify(userInfo));
+      } else {
+        localStorage.removeItem(this.USER_INFO_KEY);
+      }
+    } catch {
+      // ignore localStorage errors
+    }
+  }
 
   login(request: LoginRequest): Observable<AuthResponse> {
     console.log('Making login request to:', `${this.apiUrl}/login`);
@@ -66,9 +125,32 @@ export class AuthService {
     return this.http.put<UserProfile>(`${this.apiUrl}/profile`, request);
   }
 
+  getGoogleLinkUrl(): Observable<GoogleLinkUrlResponse> {
+    return this.http.get<GoogleLinkUrlResponse>(`${this.apiUrl}/google/link-url`);
+  }
+
+  getGoogleLinkStatus(): Observable<GoogleLinkStatusResponse> {
+    return this.http.get<GoogleLinkStatusResponse>(`${this.apiUrl}/google/status`).pipe(
+      tap(status => {
+        this.googleLinkStatus$.next(status);
+        try { localStorage.setItem(this.GOOGLE_STATUS_KEY, JSON.stringify(status)); } catch { /* ignore */ }
+      })
+    );
+  }
+
+  getCachedGoogleLinkStatus(): GoogleLinkStatusResponse | null {
+    return this.googleLinkStatus$.value;
+  }
+
+  invalidateGoogleLinkStatus(): void {
+    this.googleLinkStatus$.next(null);
+    try { localStorage.removeItem(this.GOOGLE_STATUS_KEY); } catch { /* ignore */ }
+  }
+
   // Lưu token vào localStorage
   saveToken(token: string): void {
     localStorage.setItem('authToken', token);
+    this.setUserInfo(this.readUserInfoFromToken());
   }
 
   // Lấy token từ localStorage
@@ -84,6 +166,27 @@ export class AuthService {
   // Xóa token
   removeToken(): void {
     localStorage.removeItem('authToken');
+    this.setUserInfo(null);
+  }
+
+  // Lưu role vào localStorage
+  saveRole(role: string): void {
+    localStorage.setItem(this.ROLE_KEY, role);
+  }
+
+  // Lấy role từ localStorage
+  getRole(): string | null {
+    return localStorage.getItem(this.ROLE_KEY);
+  }
+
+  // Xóa role
+  removeRole(): void {
+    localStorage.removeItem(this.ROLE_KEY);
+  }
+
+  // Kiểm tra có phải admin không
+  isAdmin(): boolean {
+    return this.getRole() === 'ADMIN';
   }
 
   // Kiểm tra đã đăng nhập chưa
@@ -93,22 +196,20 @@ export class AuthService {
 
   // Lấy thông tin user từ token
   getUserInfo(): { email: string; fullName: string } | null {
-    const token = this.getToken();
-    if (!token) return null;
+    return this.userInfo$.value;
+  }
 
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      return {
-        email: payload.sub,
-        fullName: payload.fullName || ''
-      };
-    } catch {
-      return null;
-    }
+  updateUserInfoFromProfile(profile: UserProfile): void {
+    this.setUserInfo({
+      email: profile.email,
+      fullName: profile.fullName || ''
+    });
   }
 
   // Đăng xuất
   logout(): void {
     this.removeToken();
+    this.removeRole();
+    this.invalidateGoogleLinkStatus();
   }
 }

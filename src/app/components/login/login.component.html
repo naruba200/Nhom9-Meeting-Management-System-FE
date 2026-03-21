@@ -10,7 +10,7 @@
       {{ errorMessage }}
     </div>
 
-    <form (ngSubmit)="onSubmit()" #loginForm="ngForm">
+    <form (ngSubmit)="onSubmit(loginForm)" #loginForm="ngForm" novalidate>
       <div class="form-group">
         <label for="email">Email:</label>
         <input 
@@ -18,10 +18,17 @@
           id="email" 
           name="email" 
           [(ngModel)]="loginData.email" 
+          [disabled]="isLoading"
           required 
           email
           placeholder="Nhập email của bạn"
+          #emailModel="ngModel"
+          [class.input-error]="emailModel.invalid && (emailModel.touched || loginForm.submitted)"
         />
+        <div class="field-error" *ngIf="emailModel.invalid && (emailModel.touched || loginForm.submitted)">
+          <span *ngIf="emailModel.errors?.['required']">Vui lòng nhập email.</span>
+          <span *ngIf="emailModel.errors?.['email']">Email không đúng định dạng.</span>
+        </div>
       </div>
 
       <div class="form-group">
@@ -31,9 +38,15 @@
           id="password" 
           name="password" 
           [(ngModel)]="loginData.password" 
+          [disabled]="isLoading"
           required 
           placeholder="Nhập mật khẩu"
+          #passwordModel="ngModel"
+          [class.input-error]="passwordModel.invalid && (passwordModel.touched || loginForm.submitted)"
         />
+        <div class="field-error" *ngIf="passwordModel.invalid && (passwordModel.touched || loginForm.submitted)">
+          Vui lòng nhập mật khẩu.
+        </div>
       </div>
 
       <button 
@@ -52,14 +65,3 @@
     </div>
   </div>
 </div>
-
-@if (showErrorModal) {
-  <div class="error-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="login-error-title">
-    <div class="error-modal">
-      <div class="error-modal-icon" aria-hidden="true">⚠️</div>
-      <h3 id="login-error-title">Lỗi kết nối</h3>
-      <p>{{ apiErrorMessage }}</p>
-      <button class="btn btn-primary" (click)="closeErrorModal()" autofocus>Đóng</button>
-    </div>
-  </div>
-}
