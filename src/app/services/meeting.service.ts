@@ -42,6 +42,19 @@ export class MeetingService {
     );
   }
 
+  getMeetingById(id: number): Observable<Meeting> {
+    return this.http.get<MeetingApiResponse>(`${this.apiUrl}/${id}`).pipe(
+      map((apiMeeting) => {
+        const previous = this.meetingsSubject.getValue().find((meeting) => meeting.id === id);
+        const mapped = this.mapFromApi(apiMeeting);
+        return {
+          ...mapped,
+          participants: previous?.participants ?? apiMeeting.attendees?.map((a) => this.mapParticipant(a)) ?? [],
+        };
+      })
+    );
+  }
+
   addMeeting(request: CreateMeetingRequest): Observable<Meeting> {
     const participants: Participant[] = request.participantEmails.map(email => ({
       email,

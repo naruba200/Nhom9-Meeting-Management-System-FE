@@ -6,11 +6,13 @@ import { AgendaItem, Meeting, MeetingAttachment, ParticipantInvitationStatus, Up
 import { MeetingService } from '../../../services/meeting.service';
 import { AuthService } from '../../../services/auth.service';
 import { ToastService } from '../../../services/toast.service';
+import { MinutesEditorComponent } from '../../minutes/minutes-editor/minutes-editor.component';
+import { TaskListComponent } from '../../task/task-list/task-list.component';
 
 @Component({
   selector: 'app-meeting-list',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, MinutesEditorComponent, TaskListComponent],
   templateUrl: './meeting-list.component.html',
   styleUrls: ['./meeting-list.component.css']
 })
@@ -20,6 +22,7 @@ export class MeetingListComponent implements OnInit, OnDestroy {
   currentUserEmail: string = '';
   selectedMeeting: Meeting | null = null;
   showDetailModal: boolean = false;
+  showMinutesEditor: boolean = false;
   showConfirmModal = false;
   confirmTitle = '';
   confirmMessage = '';
@@ -352,6 +355,12 @@ export class MeetingListComponent implements OnInit, OnDestroy {
     this.openDetailModal(meeting);
   }
 
+  onCreateMinutes(meeting: Meeting): void {
+    this.selectedMeeting = meeting;
+    this.showDetailModal = false;
+    this.showMinutesEditor = true;
+  }
+
   openDetailModal(meeting: Meeting): void {
     this.selectedMeeting = meeting;
     this.showDetailModal = true;
@@ -363,6 +372,11 @@ export class MeetingListComponent implements OnInit, OnDestroy {
     this.isRemovingParticipant = false;
     this.removingParticipantEmail = '';
     this.participantActionError = '';
+  }
+
+  closeMinutesEditor(): void {
+    this.showMinutesEditor = false;
+    this.selectedMeeting = null;
   }
 
   closeConfirmModal(): void {

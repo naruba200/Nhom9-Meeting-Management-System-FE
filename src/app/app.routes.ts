@@ -13,6 +13,7 @@ import { NotificationsComponent } from './components/notifications/notifications
 import { InvitationsWeekComponent } from './components/invitations-week/invitations-week.component';
 import { InvitationsHistoryComponent } from './components/invitations-history/invitations-history.component';
 import { AdminDashboardComponent } from './components/admin/admin-dashboard/admin-dashboard.component';
+import { TasksPageComponent } from './components/tasks-page/tasks-page.component';
 import { AuthGuard } from './guards/auth.guard';
 import { AdminGuard } from './guards/admin.guard';
 import { NoAuthGuard } from './guards/no-auth.guard';
@@ -29,6 +30,7 @@ export const routes: Routes = [
   { path: 'invitations', component: InvitationsWeekComponent, canActivate: [AuthGuard] },
   { path: 'invitations/history', component: InvitationsHistoryComponent, canActivate: [AuthGuard] },
   { path: 'calendar', component: CalendarComponent, canActivate: [AuthGuard] },
+  { path: 'tasks', component: TasksPageComponent, canActivate: [AuthGuard] },
   { path: 'notifications', component: NotificationsComponent, canActivate: [AuthGuard] },
   { path: 'profile', component: ProfileComponent, canActivate: [AuthGuard] },
   { path: 'settings', component: SettingsComponent, canActivate: [AuthGuard] },
