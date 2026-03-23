@@ -5,9 +5,23 @@
        class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
     {{ errorMessage }}
   </div>
-  
+
+  <!-- Sort Dropdown -->
+  <div class="flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <label for="sortOrder" class="text-sm font-medium text-gray-700">Sắp xếp theo:</label>
+      <select id="sortOrder"
+              [(ngModel)]="sortOrder"
+              (ngModelChange)="onSortChange()"
+              class="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 bg-white hover:border-gray-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none cursor-pointer">
+        <option value="newest">Mới nhất</option>
+        <option value="oldest">Cũ nhất</option>
+      </select>
+    </div>
+  </div>
+
   <!-- Empty State -->
-  <div *ngIf="activeMeetings.length === 0" class="text-center py-12 bg-white rounded-xl shadow-sm">
+  <div *ngIf="sortedMeetings.length === 0" class="text-center py-12 bg-white rounded-xl shadow-sm">
     <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
     </svg>
@@ -16,7 +30,7 @@
   </div>
 
   <!-- Meeting Cards -->
-  <div *ngFor="let meeting of activeMeetings" 
+  <div *ngFor="let meeting of sortedMeetings"
        (click)="openDetailModal(meeting)"
        class="bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300 p-5 border border-gray-100 cursor-pointer">
     
@@ -144,6 +158,73 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
         </svg>
         Xem chi tiết
+      </button>
+    </div>
+  </div>
+
+  <!-- Pagination Controls -->
+  <div *ngIf="totalPages > 1" class="flex items-center justify-between bg-white rounded-xl shadow-sm px-4 py-3 border border-gray-100">
+    <div class="text-sm text-gray-700">
+      Hiển thị <span class="font-medium">{{ isFirstPage ? 1 : currentPage * pageSize + 1 }}</span>
+      đến <span class="font-medium">{{ isLastPage ? totalElements : (currentPage + 1) * pageSize }}</span>
+      trong tổng số <span class="font-medium">{{ totalElements }}</span> cuộc họp
+    </div>
+    
+    <div class="flex items-center gap-1">
+      <!-- First Page Button -->
+      <button
+        (click)="goToPage(0)"
+        [disabled]="isFirstPage"
+        class="px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        title="Về trang đầu">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+        </svg>
+      </button>
+
+      <!-- Previous Page Button -->
+      <button
+        (click)="previousPage()"
+        [disabled]="isFirstPage"
+        class="px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        title="Trang trước">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+      </button>
+
+      <!-- Page Numbers -->
+      <ng-container *ngFor="let pageNum of getPageNumbers()">
+        <button
+          (click)="goToPage(pageNum)"
+          [class]="pageNum === currentPage 
+            ? 'px-4 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white'
+            : 'px-4 py-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'"
+          class="transition-colors">
+          {{ pageNum + 1 }}
+        </button>
+      </ng-container>
+
+      <!-- Next Page Button -->
+      <button
+        (click)="nextPage()"
+        [disabled]="isLastPage"
+        class="px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        title="Trang sau">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
+
+      <!-- Last Page Button -->
+      <button
+        (click)="goToPage(totalPages - 1)"
+        [disabled]="isLastPage"
+        class="px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        title="Về trang cuối">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+        </svg>
       </button>
     </div>
   </div>
@@ -343,8 +424,12 @@
               class="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors">
         Đóng
       </button>
-      <div *ngIf="isCreator(selectedMeeting)" class="flex gap-2">
-        <button (click)="onEdit(selectedMeeting); closeDetailModal()"
+      <div class="flex gap-2">
+        <button (click)="onViewMinutes(selectedMeeting); closeDetailModal()"
+                class="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors">
+          Tải biên bản
+        </button>
+        <button *ngIf="isCreator(selectedMeeting)" (click)="onEdit(selectedMeeting); closeDetailModal()"
           [disabled]="selectedMeeting.status === 'cancelled' || selectedMeeting.status === 'completed'"
                 class="px-4 py-2 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
           Chỉnh sửa

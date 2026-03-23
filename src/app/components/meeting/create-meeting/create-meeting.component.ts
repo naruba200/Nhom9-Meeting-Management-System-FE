@@ -247,6 +247,15 @@ export class CreateMeetingComponent implements OnInit, OnDestroy {
     this.errorMessage = '';
     this.successMessage = '';
 
+    // Ensure participantEmails is a proper array
+    const participantEmailsArray = Array.isArray(formValue.participantEmails)
+      ? formValue.participantEmails
+      : this.participantEmails.controls.map(control => control.value);
+
+    console.log('Creating meeting with participants:', participantEmailsArray);
+    console.log('participantEmails FormArray length:', this.participantEmails.length);
+    console.log('participantEmails FormArray value:', this.participantEmails.value);
+
     this.meetingService.addMeeting({
       title: formValue.title,
       agenda: formValue.agenda || '',
@@ -259,7 +268,7 @@ export class CreateMeetingComponent implements OnInit, OnDestroy {
       date: formValue.date,
       startTime: formValue.startTime,
       endTime: formValue.endTime,
-      participantEmails: formValue.participantEmails || [],
+      participantEmails: participantEmailsArray,
       syncWithGoogleCalendar: !!formValue.syncWithGoogleCalendar,
       externalMeetingLink: formValue.externalMeetingLink || '',
       timezone: formValue.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,

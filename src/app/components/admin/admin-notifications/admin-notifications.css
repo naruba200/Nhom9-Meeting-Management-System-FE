@@ -1,0 +1,92 @@
+.admin-notifications-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  padding: 2rem;
+  color: #fff; /* Default text color for the container */
+}
+
+/* Adjust main content padding if needed, but keep max-width */
+main {
+  padding-top: 2rem; /* Add some top padding */
+}
+
+/* Section styling */
+section.rounded-2xl.bg-white.p-6.shadow-sm {
+  background: rgba(255, 255, 255, 0.08); /* Darker, semi-transparent background */
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08); /* Subtle shadow */
+}
+
+/* Text colors */
+.text-indigo-600 {
+  color: #667eea; /* Adjust indigo for headings/badges */
+}
+
+.text-gray-900 {
+  color: #fff; /* White for main headings */
+}
+
+.text-gray-500 {
+  color: rgba(255, 255, 255, 0.7); /* Lighter gray for secondary text */
+}
+
+.text-gray-700 {
+  color: rgba(255, 255, 255, 0.8); /* Slightly lighter for other text */
+}
+
+/* Notification items */
+article.rounded-xl.border {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+article.rounded-xl.border[class*="border-indigo-200"] {
+  border-color: #667eea; /* Indigo border for unread */
+}
+
+article.rounded-xl.border[class*="bg-indigo-50"] {
+  background-color: rgba(102, 126, 234, 0.1); /* Light indigo background for unread */
+}
+
+article.rounded-xl.border[class*="border-gray-200"] {
+  border-color: rgba(255, 255, 255, 0.1); /* Gray border for read */
+}
+
+article.rounded-xl.border[class*="bg-white"] {
+  background-color: rgba(255, 255, 255, 0.05); /* White background for read */
+}
+
+/* Buttons */
+.inline-flex.items-center.rounded-lg.border.border-gray-300.px-4.py-2.text-sm.font-medium.text-gray-700.hover\:bg-gray-50 {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.inline-flex.items-center.rounded-lg.border.border-gray-300.px-4.py-2.text-sm.font-medium.text-gray-700.hover\:bg-gray-50:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Error messages */
+.rounded-xl.border.border-red-200.bg-red-50.p-4.text-sm.text-red-700 {
+  background-color: rgba(231, 76, 60, 0.2);
+  border-color: rgba(231, 76, 60, 0.4);
+  color: #e74c3c;
+}
+
+.rounded-xl.border.border-red-200.bg-red-50.p-4.text-sm.text-red-700 button {
+  background-color: #e74c3c;
+  border-color: #c0392b;
+  color: #fff;
+}
+
+.rounded-xl.border.border-red-200.bg-red-50.p-4.text-sm.text-red-700 button:hover {
+  background-color: #c0392b;
+}
+
+/* Loading/No notifications messages */
+.rounded-xl.border.border-gray-200.bg-gray-50.p-4.text-sm.text-gray-600 {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+}

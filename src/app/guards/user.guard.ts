@@ -5,19 +5,22 @@ import { AuthService } from '../services/auth.service';
 @Injectable({
   providedIn: 'root'
 })
-export class AdminGuard implements CanActivate {
+export class UserGuard implements CanActivate {
   constructor(
     private authService: AuthService,
     private router: Router
   ) {}
 
   canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): boolean {
-    if (this.authService.isLoggedIn() && this.authService.isAdmin()) {
+    if (this.authService.isLoggedIn() && !this.authService.isAdmin()) {
       return true;
+    } else if (this.authService.isLoggedIn() && this.authService.isAdmin()) {
+      // Nếu là admin, redirect về trang admin
+      this.router.navigate(['/admin']);
+      return false;
     } else {
-      // Lưu URL mà user muốn truy cập
-      const intendedUrl = state.url;
-      this.router.navigate(['/homepage'], { queryParams: { returnUrl: intendedUrl } });
+      // Chưa đăng nhập thì chuyển đến login
+      this.router.navigate(['/login']);
       return false;
     }
   }

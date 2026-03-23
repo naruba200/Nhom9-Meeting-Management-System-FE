@@ -45,6 +45,7 @@ export class CalendarComponent implements OnInit, OnDestroy {
   
   events: CalendarEvent[] = [];
   weekDates: Date[] = [];
+  monthDates: (Date | null)[] = [];
   loading = false;
   errorMessage = '';
   private readonly subscriptions: Subscription[] = [];
@@ -56,6 +57,7 @@ export class CalendarComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.generateMiniCalendar();
     this.generateWeekDates();
+    this.generateMonthDates();
     this.subscribeMeetings();
     this.loadMeetings();
   }
@@ -88,11 +90,32 @@ export class CalendarComponent implements OnInit, OnDestroy {
   generateWeekDates(): void {
     const startOfWeek = this.getStartOfWeek(this.currentDate);
     this.weekDates = [];
-    
+
     for (let i = 0; i < 7; i++) {
       const date = new Date(startOfWeek);
       date.setDate(startOfWeek.getDate() + i);
       this.weekDates.push(date);
+    }
+  }
+
+  generateMonthDates(): void {
+    const year = this.currentDate.getFullYear();
+    const month = this.currentDate.getMonth();
+
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+
+    const startPadding = firstDay.getDay();
+    const totalDays = lastDay.getDate();
+
+    this.monthDates = [];
+
+    for (let i = 0; i < startPadding; i++) {
+      this.monthDates.push(null);
+    }
+
+    for (let i = 1; i <= totalDays; i++) {
+      this.monthDates.push(new Date(year, month, i));
     }
   }
 
@@ -164,6 +187,7 @@ export class CalendarComponent implements OnInit, OnDestroy {
     this.miniCalendarMonth = new Date();
     this.generateMiniCalendar();
     this.generateWeekDates();
+    this.generateMonthDates();
   }
 
   navigatePrev(): void {
@@ -175,6 +199,7 @@ export class CalendarComponent implements OnInit, OnDestroy {
       this.currentDate = new Date(this.currentDate.setDate(this.currentDate.getDate() - 1));
     }
     this.generateWeekDates();
+    this.generateMonthDates();
   }
 
   navigateNext(): void {
@@ -186,6 +211,7 @@ export class CalendarComponent implements OnInit, OnDestroy {
       this.currentDate = new Date(this.currentDate.setDate(this.currentDate.getDate() + 1));
     }
     this.generateWeekDates();
+    this.generateMonthDates();
   }
 
   miniCalendarPrev(): void {
@@ -200,6 +226,11 @@ export class CalendarComponent implements OnInit, OnDestroy {
 
   setViewMode(mode: 'day' | 'week' | 'month'): void {
     this.viewMode = mode;
+    if (mode === 'month') {
+      this.generateMonthDates();
+    } else if (mode === 'week') {
+      this.generateWeekDates();
+    }
   }
 
   selectMiniCalendarDay(day: number | null): void {
@@ -210,6 +241,7 @@ export class CalendarComponent implements OnInit, OnDestroy {
         day
       );
       this.generateWeekDates();
+      this.generateMonthDates();
     }
   }
 
@@ -239,6 +271,16 @@ export class CalendarComponent implements OnInit, OnDestroy {
              eventDate.getMonth() === date.getMonth() &&
              eventDate.getFullYear() === date.getFullYear() &&
              event.startHour === hour &&
+             this.categories.find(c => c.color === event.color)?.checked;
+    });
+  }
+
+  getEventsForDate(date: Date): CalendarEvent[] {
+    return this.events.filter(event => {
+      const eventDate = new Date(event.date);
+      return eventDate.getDate() === date.getDate() &&
+             eventDate.getMonth() === date.getMonth() &&
+             eventDate.getFullYear() === date.getFullYear() &&
              this.categories.find(c => c.color === event.color)?.checked;
     });
   }

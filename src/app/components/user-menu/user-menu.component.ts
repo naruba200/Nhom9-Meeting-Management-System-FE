@@ -19,7 +19,7 @@ export class UserMenuComponent implements OnInit, OnDestroy {
   private readonly subscriptions: Subscription[] = [];
 
   constructor(
-    private readonly authService: AuthService,
+    public readonly authService: AuthService,
     private readonly router: Router,
     private readonly notificationService: NotificationService
   ) {}

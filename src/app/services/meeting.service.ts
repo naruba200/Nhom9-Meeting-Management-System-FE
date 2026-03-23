@@ -16,6 +16,7 @@ import {
   MeetingAttachmentApiResponse,
   MeetingApiResponse,
   MeetingStatus,
+  PaginatedMeetingResponse,
   ParticipantInvitationStatus,
   Participant,
   UpdateMeetingRequest,
@@ -39,6 +40,17 @@ export class MeetingService {
     return this.http.get<MeetingApiResponse[]>(this.apiUrl).pipe(
       map((apiMeetings) => apiMeetings.map((item) => this.mapFromApi(item))),
       tap((meetings) => this.meetingsSubject.next(meetings))
+    );
+  }
+
+  getMeetingsPaginated(page: number, size: number, sortOrder: string): Observable<PaginatedMeetingResponse> {
+    return this.http.get<PaginatedMeetingResponse>(this.apiUrl, {
+      params: { page, size, sortOrder }
+    }).pipe(
+      map((response) => ({
+        ...response,
+        content: response.content.map((item) => this.mapFromApi(item as any))
+      }))
     );
   }
 
@@ -77,6 +89,9 @@ export class MeetingService {
       timezone: request.timezone?.trim() || Intl.DateTimeFormat().resolvedOptions().timeZone,
       attendeeEmails: request.participantEmails,
     };
+
+    console.log('[MeetingService] addMeeting payload:', payload);
+    console.log('[MeetingService] attendeeEmails:', payload.attendeeEmails);
 
     return this.http.post<MeetingApiResponse>(this.apiUrl, payload).pipe(
       map((apiMeeting) => {

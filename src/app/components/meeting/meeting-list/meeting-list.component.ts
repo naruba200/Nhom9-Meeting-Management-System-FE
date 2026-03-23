@@ -8,6 +8,9 @@ import { AuthService } from '../../../services/auth.service';
 import { ToastService } from '../../../services/toast.service';
 import { MinutesEditorComponent } from '../../minutes/minutes-editor/minutes-editor.component';
 import { TaskListComponent } from '../../task/task-list/task-list.component';
+import { MeetingMinutesService } from '../../../services/minutes.service';
+import { MeetingMinutes } from '../../../models/minutes.models';
+import jsPDF from 'jspdf';
 
 @Component({
   selector: 'app-meeting-list',
@@ -23,6 +26,7 @@ export class MeetingListComponent implements OnInit, OnDestroy {
   selectedMeeting: Meeting | null = null;
   showDetailModal: boolean = false;
   showMinutesEditor: boolean = false;
+  viewMinutes: MeetingMinutes | null = null;
   showConfirmModal = false;
   confirmTitle = '';
   confirmMessage = '';
@@ -69,6 +73,17 @@ export class MeetingListComponent implements OnInit, OnDestroy {
     syncWithGoogleCalendar: false,
   };
   errorMessage = '';
+  sortOrder: 'newest' | 'oldest' = 'newest';
+  
+  // Pagination
+  currentPage = 0;
+  pageSize = 10;
+  totalPages = 0;
+  totalElements = 0;
+  isFirstPage = true;
+  isLastPage = true;
+  isLoading = false;
+  
   private readonly subscriptions: Subscription[] = [];
 
   constructor(
@@ -76,6 +91,7 @@ export class MeetingListComponent implements OnInit, OnDestroy {
     private authService: AuthService,
     private cdr: ChangeDetectorRef,
     private toastService: ToastService,
+    private minutesService: MeetingMinutesService,
   ) {}
 
   ngOnInit(): void {
@@ -89,40 +105,42 @@ export class MeetingListComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const meetingsSub = this.meetingService.getMeetings().subscribe(meetings => {
-      this.meetings = meetings;
-
-      if (this.selectedMeeting) {
-        const refreshed = meetings.find((meeting) => meeting.id === this.selectedMeeting?.id);
-        this.selectedMeeting = refreshed ?? null;
-        if (!refreshed) {
-          this.showDetailModal = false;
-        }
-      }
-
-      this.cdr.detectChanges();
-    });
-    this.subscriptions.push(meetingsSub);
-
-    const loadSub = this.meetingService.loadMeetings().pipe(timeout(10000)).subscribe({
-      next: () => {
-        this.errorMessage = '';
-        this.cdr.detectChanges();
-      },
-      error: (error) => {
-        if (error instanceof TimeoutError) {
-          this.errorMessage = 'Máy chủ không phản hồi khi tải cuộc họp. Vui lòng thử lại.';
-        } else {
-          this.errorMessage = 'Không thể tải dữ liệu cuộc họp. Vui lòng thử lại.';
-        }
-        console.error('Load meetings failed', error);
-        this.cdr.detectChanges();
-      }
-    });
-    this.subscriptions.push(loadSub);
-    
     const userInfo = this.authService.getUserInfo();
     this.currentUserEmail = userInfo?.email || '';
+
+    this.loadMeetingsPage();
+  }
+
+  loadMeetingsPage(): void {
+    this.isLoading = true;
+    this.errorMessage = '';
+
+    const loadSub = this.meetingService.getMeetingsPaginated(this.currentPage, this.pageSize, this.sortOrder)
+      .pipe(timeout(10000))
+      .subscribe({
+        next: (response) => {
+          this.meetings = response.content;
+          this.currentPage = response.page;
+          this.pageSize = response.size;
+          this.totalPages = response.totalPages;
+          this.totalElements = response.totalElements;
+          this.isFirstPage = response.first;
+          this.isLastPage = response.last;
+          this.isLoading = false;
+          this.cdr.detectChanges();
+        },
+        error: (error) => {
+          if (error instanceof TimeoutError) {
+            this.errorMessage = 'Máy chủ không phản hồi khi tải cuộc họp. Vui lòng thử lại.';
+          } else {
+            this.errorMessage = 'Không thể tải dữ liệu cuộc họp. Vui lòng thử lại.';
+          }
+          console.error('Load meetings failed', error);
+          this.isLoading = false;
+          this.cdr.detectChanges();
+        }
+      });
+    this.subscriptions.push(loadSub);
   }
 
   ngOnDestroy(): void {
@@ -167,6 +185,17 @@ export class MeetingListComponent implements OnInit, OnDestroy {
     const end = new Date(endTime);
 
     return `${start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - ${end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
+  }
+
+  formatDateTime(dateTime: string): string {
+    const date = new Date(dateTime);
+    return date.toLocaleString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   }
 
   onInvite(meeting: Meeting): void {
@@ -347,6 +376,28 @@ export class MeetingListComponent implements OnInit, OnDestroy {
     );
   }
 
+  get sortedMeetings(): Meeting[] {
+    const meetings = [...this.activeMeetings];
+    if (this.sortOrder === 'newest') {
+      return meetings.sort((a, b) => {
+        const dateA = new Date(a.startTime).getTime();
+        const dateB = new Date(b.startTime).getTime();
+        return dateB - dateA;
+      });
+    } else {
+      return meetings.sort((a, b) => {
+        const dateA = new Date(a.startTime).getTime();
+        const dateB = new Date(b.startTime).getTime();
+        return dateA - dateB;
+      });
+    }
+  }
+
+  onSortChange(): void {
+    this.currentPage = 0;
+    this.loadMeetingsPage();
+  }
+
   isCreator(meeting: Meeting): boolean {
     return meeting.organizerEmail === this.currentUserEmail;
   }
@@ -377,6 +428,259 @@ export class MeetingListComponent implements OnInit, OnDestroy {
   closeMinutesEditor(): void {
     this.showMinutesEditor = false;
     this.selectedMeeting = null;
+  }
+
+  onViewMinutes(meeting: Meeting): void {
+    if (!meeting.id) return;
+    
+    this.minutesService.getMinutesByMeeting(meeting.id).subscribe({
+      next: (minutes) => {
+        if (minutes) {
+          this.viewMinutes = minutes;
+          this.generateMinutesPdf(minutes);
+        } else {
+          this.toastService.warning('Cuộc họp này chưa có biên bản.');
+        }
+      },
+      error: () => {
+        this.toastService.error('Không thể tải biên bản cuộc họp.');
+      }
+    });
+  }
+
+  downloadMinutesPdf(): void {
+    if (!this.viewMinutes) {
+      this.toastService.warning('Không có biên bản để tải.');
+      return;
+    }
+
+    // Nếu có pdfUrl thì tải từ link, ngược lại sinh PDF từ nội dung
+    if (this.viewMinutes.pdfUrl) {
+      const link = document.createElement('a');
+      link.href = this.viewMinutes.pdfUrl!;
+      link.download = `BienBan_${this.viewMinutes.title}.pdf`;
+      link.target = '_blank';
+      link.click();
+      return;
+    }
+
+    // Sinh PDF từ nội dung
+    this.generateMinutesPdf(this.viewMinutes);
+  }
+
+  closeViewMinutesModal(): void {
+    this.viewMinutes = null;
+  }
+
+  onMinutesModalBackdropClick(event: MouseEvent): void {
+    if ((event.target as HTMLElement).classList.contains('modal-backdrop')) {
+      this.closeViewMinutesModal();
+    }
+  }
+
+  generateMinutesPdf(minutes: MeetingMinutes): void {
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 20;
+    const contentWidth = pageWidth - 2 * margin;
+    let y = margin;
+
+    // Helper function to add text with proper Vietnamese support
+    const addText = (text: string, x: number, yPosition: number, options?: { align?: 'left' | 'center' | 'right'; maxWidth?: number }) => {
+      // Remove Vietnamese diacritics for compatibility
+      const normalizedText = text
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd')
+        .replace(/Đ/g, 'D');
+      return normalizedText;
+    };
+
+    // Title
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text('BIEN BAN CUOC HOP', pageWidth / 2, y + 10, { align: 'center' });
+    y += 20;
+
+    // Meeting title
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text(minutes.title, pageWidth / 2, y, { align: 'center' });
+    y += 15;
+
+    // Status
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(11);
+    const statusLabel = 'Trang thai: ';
+    const statusValue = minutes.status === 'DRAFT' ? 'Nhap' : minutes.status === 'FINALIZED' ? 'Da hoan thanh' : 'Da ky';
+    doc.text(statusLabel + statusValue, margin, y);
+    y += 12;
+
+    // Time
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(11);
+    const timeLabel = 'Thoi gian: ';
+    const timeValue = `${this.formatDateTime(minutes.minutesCreatedAt)} - ${this.formatDateTime(minutes.minutesClosedAt)}`;
+    doc.text(timeLabel + timeValue, margin, y);
+    y += 12;
+
+    // Location
+    if (minutes.location) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      const locationLabel = 'Dia diem: ';
+      doc.text(locationLabel + minutes.location, margin, y);
+      y += 12;
+    }
+
+    // Purpose
+    if (minutes.purpose) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      const purposeLabel = 'Muc dich: ';
+      doc.text(purposeLabel + minutes.purpose, margin, y);
+      y += 12;
+    }
+
+    y += 8;
+
+    // Attendees
+    if (minutes.attendees) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.text('THANH PHAN THAM DU', margin, y);
+      y += 8;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      const attendeeLines = doc.splitTextToSize(minutes.attendees, contentWidth);
+      doc.text(attendeeLines, margin, y);
+      y += attendeeLines.length * 6 + 6;
+    }
+
+    // Absentees
+    if (minutes.absentees) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.text('VANG MAT', margin, y);
+      y += 8;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      const absenteeLines = doc.splitTextToSize(minutes.absentees, contentWidth);
+      doc.text(absenteeLines, margin, y);
+      y += absenteeLines.length * 6 + 6;
+    }
+
+    // Content
+    if (minutes.content) {
+      if (y > 240) { doc.addPage(); y = margin; }
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.text('NOI DUNG CUOC HOP', margin, y);
+      y += 8;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      const contentLines = doc.splitTextToSize(minutes.content, contentWidth);
+      doc.text(contentLines, margin, y);
+      y += contentLines.length * 6 + 6;
+    }
+
+    // Decisions
+    if (minutes.decisions) {
+      if (y > 240) { doc.addPage(); y = margin; }
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.text('QUYET DINH, CHI THI', margin, y);
+      y += 8;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      const decisionsLines = doc.splitTextToSize(minutes.decisions, contentWidth);
+      doc.text(decisionsLines, margin, y);
+      y += decisionsLines.length * 6 + 6;
+    }
+
+    // Contributions
+    if (minutes.contributions) {
+      if (y > 240) { doc.addPage(); y = margin; }
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.text('Y KIEN DONG GOP', margin, y);
+      y += 8;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      const contributionsLines = doc.splitTextToSize(minutes.contributions, contentWidth);
+      doc.text(contributionsLines, margin, y);
+      y += contributionsLines.length * 6 + 6;
+    }
+
+    // Voting
+    if (minutes.voting) {
+      if (y > 240) { doc.addPage(); y = margin; }
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.text('BIEU QUET', margin, y);
+      y += 8;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      const votingLines = doc.splitTextToSize(minutes.voting, contentWidth);
+      doc.text(votingLines, margin, y);
+      y += votingLines.length * 6 + 6;
+    }
+
+    // Conclusions
+    if (minutes.conclusions) {
+      if (y > 240) { doc.addPage(); y = margin; }
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.text('KET LUAN', margin, y);
+      y += 8;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      const conclusionsLines = doc.splitTextToSize(minutes.conclusions, contentWidth);
+      doc.text(conclusionsLines, margin, y);
+      y += conclusionsLines.length * 6 + 6;
+    }
+
+    // Signatures
+    if (minutes.signatures && minutes.signatures.length > 0) {
+      if (y > 250) { doc.addPage(); y = margin; }
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.text('CHU KY', margin, y);
+      y += 10;
+
+      const sigPerRow = 2;
+      const sigWidth = (contentWidth - 10) / sigPerRow;
+
+      minutes.signatures.forEach((sig, index) => {
+        const row = Math.floor(index / sigPerRow);
+        const col = index % sigPerRow;
+        const sigX = margin + col * (sigWidth + 10);
+        const sigY = y + row * 40;
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.text(sig.signerName || sig.signerEmail, sigX, sigY);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.text(sig.agreed ? 'Da ky (Dong y)' : 'Da ky (Khong dong y)', sigX, sigY + 6);
+        if (sig.signedAt) {
+          doc.text(`Luc: ${new Date(sig.signedAt).toLocaleString('vi-VN')}`, sigX, sigY + 12);
+        }
+        if (sig.notes) {
+          const notesLines = doc.splitTextToSize(sig.notes, sigWidth);
+          doc.text(notesLines, sigX, sigY + 18);
+        }
+      });
+    }
+
+    // Save PDF
+    doc.save(`BienBan_${minutes.title}.pdf`);
+    this.toastService.success('Da tai bien ban PDF thanh cong!');
   }
 
   closeConfirmModal(): void {
@@ -418,16 +722,47 @@ export class MeetingListComponent implements OnInit, OnDestroy {
   }
 
   private refreshMeetingsView(): void {
-    const refreshSub = this.meetingService.loadMeetings().subscribe({
-      next: () => {
-        this.cdr.detectChanges();
-      },
-      error: () => {
-        this.cdr.detectChanges();
-      },
-    });
+    this.loadMeetingsPage();
+  }
 
-    this.subscriptions.push(refreshSub);
+  // Pagination methods
+  goToPage(page: number): void {
+    if (page < 0 || page >= this.totalPages || page === this.currentPage) {
+      return;
+    }
+    this.currentPage = page;
+    this.loadMeetingsPage();
+  }
+
+  nextPage(): void {
+    if (!this.isLastPage) {
+      this.goToPage(this.currentPage + 1);
+    }
+  }
+
+  previousPage(): void {
+    if (!this.isFirstPage) {
+      this.goToPage(this.currentPage - 1);
+    }
+  }
+
+  getPageNumbers(): number[] {
+    const pages: number[] = [];
+    const maxVisiblePages = 5;
+    
+    let startPage = Math.max(0, this.currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(this.totalPages - 1, startPage + maxVisiblePages - 1);
+    
+    // Adjust if we're near the end
+    if (endPage - startPage < maxVisiblePages - 1) {
+      startPage = Math.max(0, endPage - maxVisiblePages + 1);
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+    
+    return pages;
   }
 
   onModalBackdropClick(event: MouseEvent): void {

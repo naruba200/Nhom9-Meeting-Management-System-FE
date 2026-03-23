@@ -1,0 +1,48 @@
+<div class="admin-notifications-container">
+  <main class="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
+    <section class="rounded-2xl bg-white p-6 shadow-sm">
+      <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p class="text-sm font-semibold uppercase tracking-wide text-indigo-600">Trung tâm</p>
+          <h1 class="text-2xl font-bold text-gray-900">Thông báo</h1>
+        </div>
+        <span class="rounded-full bg-indigo-50 px-3 py-1 text-sm font-medium text-indigo-700">
+          {{ unreadCount }} chưa đọc
+        </span>
+      </div>
+
+      <div *ngIf="loading" class="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+        Đang tải thông báo...
+      </div>
+
+      <div *ngIf="!loading && errorMessage" class="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        <p>{{ errorMessage }}</p>
+        <button type="button" (click)="loadNotifications()" class="mt-3 inline-flex items-center rounded-lg border border-red-300 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100">
+          Thử lại
+        </button>
+      </div>
+
+      <div *ngIf="!loading && !errorMessage && notifications.length === 0" class="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+        Hiện chưa có thông báo nào.
+      </div>
+
+      <div *ngIf="!loading && !errorMessage && notifications.length > 0" class="space-y-3">
+        <article
+          *ngFor="let item of notifications"
+          class="rounded-xl border p-4 transition-colors cursor-pointer"
+          (click)="onNotificationClick(item)"
+          [class.border-indigo-200]="!item.read"
+          [class.bg-indigo-50]="!item.read"
+          [class.border-gray-200]="item.read"
+          [class.bg-white]="item.read"
+        >
+          <div class="mb-1 flex items-start justify-between gap-3">
+            <h2 class="text-base font-semibold text-gray-900">{{ item.title }}</h2>
+            <span class="text-xs text-gray-500">{{ formatTime(item.createdAt) }}</span>
+          </div>
+          <p class="text-sm text-gray-700">{{ item.message }}</p>
+        </article>
+      </div>
+    </section>
+  </main>
+</div>

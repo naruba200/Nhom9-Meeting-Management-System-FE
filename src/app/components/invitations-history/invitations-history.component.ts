@@ -1,14 +1,16 @@
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import { FormsModule } from '@angular/forms';
 import { NavbarComponent } from '../navbar/navbar.component';
+import { PaginationComponent } from '../pagination/pagination.component';
 import { InvitationService } from '../../services/invitation.service';
 import { InvitationItem } from '../../models/invitation.models';
 
 @Component({
   selector: 'app-invitations-history',
   standalone: true,
-  imports: [CommonModule, RouterModule, NavbarComponent],
+  imports: [CommonModule, RouterModule, NavbarComponent, PaginationComponent, FormsModule],
   templateUrl: './invitations-history.component.html',
   styleUrl: './invitations-history.component.css'
 })
@@ -16,6 +18,11 @@ export class InvitationsHistoryComponent implements OnInit {
   invitations: InvitationItem[] = [];
   loading = false;
   errorMessage = '';
+  sortOrder: 'newest' | 'oldest' = 'newest';
+
+  // Pagination
+  currentPage = 1;
+  pageSize = 10;
 
   constructor(
     private invitationService: InvitationService,
@@ -24,6 +31,35 @@ export class InvitationsHistoryComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadHistory();
+  }
+
+  get sortedInvitations(): InvitationItem[] {
+    return [...this.invitations].sort((a, b) => {
+      const dateA = new Date(a.invitedAt).getTime();
+      const dateB = new Date(b.invitedAt).getTime();
+      return this.sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
+    });
+  }
+
+  get paginatedInvitations(): InvitationItem[] {
+    const start = (this.currentPage - 1) * this.pageSize;
+    const end = start + this.pageSize;
+    return this.sortedInvitations.slice(start, end);
+  }
+
+  get totalInvitations(): number {
+    return this.invitations.length;
+  }
+
+  onPageChange(page: number): void {
+    this.currentPage = page;
+    this.cdr.detectChanges();
+  }
+
+  onPageSizeChange(pageSize: number): void {
+    this.pageSize = pageSize;
+    this.currentPage = 1;
+    this.cdr.detectChanges();
   }
 
   loadHistory(): void {

@@ -111,6 +111,17 @@ export interface InviteMeetingRequest {
   attendeeEmails: string[];
 }
 
+export interface PaginatedMeetingResponse {
+  content: Meeting[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
+  numberOfElements: number;
+}
+
 export interface MeetingApiResponse {
   id: number;
   title: string;

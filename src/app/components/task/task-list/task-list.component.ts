@@ -48,6 +48,8 @@ export class TaskListComponent implements OnInit {
   readonly inProgressTasks = computed(() => this.tasks().filter(t => t.status === 'IN_PROGRESS'));
   readonly completedTasks = computed(() => this.tasks().filter(t => t.status === 'COMPLETED'));
 
+  readonly acceptedParticipants = computed(() => this.participants().filter(p => p.status === 'accepted'));
+
   constructor() {
     this.currentUserEmail.set(this.authService.getUserInfo()?.email || '');
   }

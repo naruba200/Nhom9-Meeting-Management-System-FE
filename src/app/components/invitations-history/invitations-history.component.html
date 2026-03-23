@@ -13,6 +13,17 @@
         </a>
       </div>
 
+      <div class="mb-4">
+        <label class="mb-1 block text-sm font-medium text-gray-700">Sắp xếp theo</label>
+        <select
+          [(ngModel)]="sortOrder"
+          class="w-full rounded-xl border border-gray-300 px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 sm:w-48"
+        >
+          <option value="newest">Mới nhất</option>
+          <option value="oldest">Cũ nhất</option>
+        </select>
+      </div>
+
       <div *ngIf="errorMessage" class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
         {{ errorMessage }}
       </div>
@@ -25,8 +36,8 @@
         Bạn chưa nhận lời mời nào.
       </div>
 
-      <div *ngIf="!loading && invitations.length > 0" class="space-y-3">
-        <article *ngFor="let item of invitations" class="rounded-xl border border-gray-200 p-4">
+      <div *ngIf="!loading && paginatedInvitations.length > 0" class="space-y-3">
+        <article *ngFor="let item of paginatedInvitations" class="rounded-xl border border-gray-200 p-4">
           <div class="mb-2 flex items-start justify-between gap-3">
             <h2 class="text-lg font-semibold text-gray-900">{{ item.meetingTitle }}</h2>
             <span [class]="'rounded-full px-3 py-1 text-xs font-semibold ' + getStatusClass(item.status)">
@@ -41,6 +52,16 @@
           <p *ngIf="item.responseReason" class="text-sm text-gray-700">Lý do từ chối: {{ item.responseReason }}</p>
         </article>
       </div>
+
+      <!-- Pagination -->
+      <app-pagination
+        [currentPage]="currentPage"
+        [pageSize]="pageSize"
+        [totalItems]="totalInvitations"
+        (pageChange)="onPageChange($event)"
+        (pageSizeChange)="onPageSizeChange($event)"
+      >
+      </app-pagination>
     </section>
   </main>
 </div>

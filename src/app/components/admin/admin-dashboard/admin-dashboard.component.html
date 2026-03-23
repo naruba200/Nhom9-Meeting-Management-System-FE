@@ -15,7 +15,7 @@
     </div>
 
     <div class="stats-section" *ngIf="!loading && !error">
-      <div class="stat-card">
+      <div class="stat-card" routerLink="/admin/users" style="cursor: pointer;">
         <div class="stat-icon users-icon">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
@@ -73,25 +73,24 @@
       <button (click)="loadStats()" class="retry-btn">Thử lại</button>
     </div>
 
-    <div class="placeholder-section">
-      <h3>Các tính năng sắp ra mắt</h3>
-      <div class="feature-list">
-        <div class="feature-item">
-          <span class="feature-status pending">Sắp có</span>
-          <span>Quản lý người dùng</span>
-        </div>
-        <div class="feature-item">
-          <span class="feature-status pending">Sắp có</span>
-          <span>Quản lý cuộc họp</span>
-        </div>
-        <div class="feature-item">
-          <span class="feature-status pending">Sắp có</span>
-          <span>Báo cáo & Thống kê</span>
-        </div>
-        <div class="feature-item">
-          <span class="feature-status pending">Sắp có</span>
-          <span>Cấu hình hệ thống</span>
-        </div>
+    <div class="quick-actions">
+      <h3>Quản lý</h3>
+      <div class="actions-grid">
+        <a routerLink="/admin/users" class="action-card">
+          <div class="action-icon">👥</div>
+          <h4>Quản lý người dùng</h4>
+          <p>Thêm, sửa, xóa tài khoản</p>
+        </a>
+        <a routerLink="/admin/notifications" class="action-card">
+          <div class="action-icon">🔔</div>
+          <h4>Quản lý thông báo</h4>
+          <p>Xem tất cả thông báo</p>
+        </a>
+        <a routerLink="/admin/profile" class="action-card">
+          <div class="action-icon">👤</div>
+          <h4>Hồ sơ admin</h4>
+          <p>Cập nhật thông tin cá nhân</p>
+        </a>
       </div>
     </div>
   </div>

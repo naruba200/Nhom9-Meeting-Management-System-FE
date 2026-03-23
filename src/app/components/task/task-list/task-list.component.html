@@ -203,7 +203,7 @@
           <label for="assignee">Giao cho <span class="required">*</span></label>
           <select id="assignee" formControlName="assigneeEmail" class="form-control">
             <option value="" disabled>-- Chọn người tham gia --</option>
-            @for (participant of participants(); track participant.email) {
+            @for (participant of acceptedParticipants(); track participant.email) {
               <option [value]="participant.email">
                 {{ participant.name || participant.email }}
               </option>
