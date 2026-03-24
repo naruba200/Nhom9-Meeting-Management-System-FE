@@ -16,6 +16,7 @@ import { AdminDashboardComponent } from './components/admin/admin-dashboard/admi
 import { AdminProfile } from './components/admin/admin-profile/admin-profile';
 import { AdminNotifications } from './components/admin/admin-notifications/admin-notifications';
 import { AdminUsersComponent } from './components/admin/admin-users/admin-users.component';
+import { AdminFileManagementComponent } from './components/admin/admin-file-management/admin-file-management.component';
 import { TasksPageComponent } from './components/tasks-page/tasks-page.component';
 import { AuthGuard } from './guards/auth.guard';
 import { AdminGuard } from './guards/admin.guard';
@@ -45,7 +46,8 @@ export const routes: Routes = [
       { path: '', component: AdminDashboardComponent },
       { path: 'profile', component: AdminProfile },
       { path: 'notifications', component: AdminNotifications },
-      { path: 'users', component: AdminUsersComponent }
+      { path: 'users', component: AdminUsersComponent },
+      { path: 'files', component: AdminFileManagementComponent }
     ]
   },
   { path: '**', redirectTo: '/login' }

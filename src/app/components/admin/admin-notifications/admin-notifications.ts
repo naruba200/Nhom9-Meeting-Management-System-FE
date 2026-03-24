@@ -5,11 +5,12 @@ import { timeout, TimeoutError } from 'rxjs';
 import { NotificationService } from '../../../services/notification.service';
 import { NotificationItem } from '../../../models/notification.models';
 import { AuthService } from '../../../services/auth.service';
+import { AdminHeaderComponent } from '../admin-header/admin-header.component';
 
 @Component({
   selector: 'app-admin-notifications',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, AdminHeaderComponent],
   templateUrl: './admin-notifications.html',
   styleUrl: './admin-notifications.css'
 })
@@ -20,11 +21,15 @@ export class AdminNotifications implements OnInit {
   loading = true;
   errorMessage = '';
 
+  userInfo: { email: string; fullName: string } | null = null;
+
   constructor(
     private notificationService: NotificationService,
-    private authService: AuthService,
+    public authService: AuthService,
     private cdr: ChangeDetectorRef
-  ) {}
+  ) {
+    this.userInfo = this.authService.getUserInfo();
+  }
 
   ngOnInit(): void {
     if (!isPlatformBrowser(this.platformId)) {

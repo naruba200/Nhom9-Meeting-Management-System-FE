@@ -5,6 +5,14 @@
   color: #fff; /* Default text color for the container */
 }
 
+h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 1.5rem;
+}
+
 /* Adjust main content padding if needed, but keep max-width */
 main {
   padding-top: 2rem; /* Add some top padding */

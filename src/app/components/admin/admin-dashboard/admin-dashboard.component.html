@@ -1,14 +1,7 @@
-<div class="admin-dashboard-container">
-  <div class="admin-header">
-    <h1>Admin Dashboard</h1>
-    <div class="user-info">
-      <span class="admin-badge">ADMIN</span>
-      <span>{{ userInfo?.fullName || 'Admin' }}</span>
-      <app-user-menu [fullName]="userInfo?.fullName || ''" [email]="userInfo?.email || ''"></app-user-menu>
-    </div>
-  </div>
-
-  <div class="admin-content">
+<div class="min-h-screen bg-gray-100">
+  <admin-header [userInfo]="userInfo"></admin-header>
+    <div class="admin-dashboard-container">
+      <div class="admin-content">
     <div class="welcome-section">
       <h2>Chào mừng Admin!</h2>
       <p>Đây là trang quản trị hệ thống. Chỉ có tài khoản với quyền ADMIN mới có thể truy cập.</p>
@@ -80,6 +73,11 @@
           <div class="action-icon">👥</div>
           <h4>Quản lý người dùng</h4>
           <p>Thêm, sửa, xóa tài khoản</p>
+        </a>
+        <a routerLink="/admin/files" class="action-card">
+          <div class="action-icon">📁</div>
+          <h4>Quản lý tệp</h4>
+          <p>Xem, xóa các file đã tải lên</p>
         </a>
         <a routerLink="/admin/notifications" class="action-card">
           <div class="action-icon">🔔</div>

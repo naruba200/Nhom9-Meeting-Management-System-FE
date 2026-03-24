@@ -5,16 +5,18 @@ import { FormsModule } from '@angular/forms';
 import { timeout, TimeoutError } from 'rxjs';
 import { AuthService } from '../../../services/auth.service';
 import { UserProfile, UpdateProfileRequest } from '../../../models/auth.models';
+import { AdminHeaderComponent } from '../admin-header/admin-header.component';
 
 @Component({
   selector: 'app-admin-profile',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule],
+  imports: [CommonModule, RouterModule, FormsModule, AdminHeaderComponent],
   templateUrl: './admin-profile.html',
   styleUrls: ['./admin-profile.css']
 })
 export class AdminProfile implements OnInit {
   private readonly platformId = inject(PLATFORM_ID);
+  userInfo: { email: string; fullName: string } | null = null;
 
   userProfile: UserProfile | null = null;
   isLoading: boolean = true;
