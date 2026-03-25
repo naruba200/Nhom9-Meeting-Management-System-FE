@@ -37,8 +37,8 @@ export class MeetingService {
   }
 
   loadMeetings(): Observable<Meeting[]> {
-    return this.http.get<MeetingApiResponse[]>(this.apiUrl).pipe(
-      map((apiMeetings) => apiMeetings.map((item) => this.mapFromApi(item))),
+    return this.http.get<PaginatedMeetingResponse>(this.apiUrl).pipe(
+      map((response) => response.content.map((item) => this.mapFromApi(item as any))),
       tap((meetings) => this.meetingsSubject.next(meetings))
     );
   }

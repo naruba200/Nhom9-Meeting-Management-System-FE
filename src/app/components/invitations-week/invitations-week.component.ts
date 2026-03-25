@@ -66,7 +66,7 @@ export class InvitationsWeekComponent implements OnInit {
 
     this.invitationService.acceptInvitation(invitation.attendeeId).subscribe({
       next: () => {
-        this.successMessage = `Đã chấp nhận lời mời: ${invitation.meetingTitle}`;
+        this.successMessage = `Đã chấp nhận lời mời: ${invitation.meetingTitle}. Thông báo đã được gửi đến người tạo cuộc họp.`;
         this.toastService.success(this.successMessage);
         this.actionLoadingId = null;
         this.cdr.detectChanges();
@@ -110,7 +110,7 @@ export class InvitationsWeekComponent implements OnInit {
 
     this.invitationService.declineInvitation(invitation.attendeeId, { reason }).subscribe({
       next: () => {
-        this.successMessage = `Đã từ chối lời mời: ${invitation.meetingTitle}`;
+        this.successMessage = `Đã từ chối lời mời: ${invitation.meetingTitle}. Thông báo cùng lý do đã được gửi đến người tạo cuộc họp.`;
         this.toastService.warning(this.successMessage);
         this.actionLoadingId = null;
         this.cancelDeclineForm();
