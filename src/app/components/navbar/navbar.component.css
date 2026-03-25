@@ -1,0 +1,5 @@
+/* Keep navbar typography consistent across pages. */
+:host {
+	display: block;
+	font-family: 'Inter', 'Roboto', sans-serif;
+}

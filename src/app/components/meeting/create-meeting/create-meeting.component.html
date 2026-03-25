@@ -1,0 +1,326 @@
+<div class="bg-white rounded-xl shadow-sm p-6 sticky top-6">
+  <h2 class="text-xl font-bold text-gray-800 mb-6 font-['Inter'] flex items-center gap-2">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+    </svg>
+    Tạo cuộc họp mới
+  </h2>
+
+  <form [formGroup]="meetingForm" (ngSubmit)="onSubmit()" class="space-y-5">
+    <!-- Title Field -->
+    <div>
+      <label for="title" class="block text-sm font-medium text-gray-700 mb-1">
+        Tiêu đề cuộc họp <span class="text-red-500">*</span>
+      </label>
+      <input type="text"
+             id="title"
+             formControlName="title"
+             placeholder="Nhập tiêu đề cuộc họp"
+             class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 outline-none"
+             [class.border-red-500]="titleControl?.invalid && titleControl?.touched">
+      <p *ngIf="titleControl?.invalid && titleControl?.touched" class="mt-1 text-sm text-red-500">
+        <span *ngIf="titleControl?.errors?.['required']">Tiêu đề là bắt buộc</span>
+        <span *ngIf="titleControl?.errors?.['minlength']">Tiêu đề phải có ít nhất 3 ký tự</span>
+      </p>
+    </div>
+
+    <!-- Meeting Mode -->
+    <div class="group relative rounded-xl border p-4 transition-colors duration-200"
+         [class.border-indigo-100]="isGoogleLinked"
+         [class.bg-indigo-50]="isGoogleLinked"
+         [class.border-gray-200]="!isGoogleLinked"
+         [class.bg-gray-100]="!isGoogleLinked"
+         [class.opacity-70]="!isGoogleLinked">
+      <label class="inline-flex items-center gap-2 text-sm font-medium"
+             [class.text-gray-700]="isGoogleLinked"
+             [class.text-gray-500]="!isGoogleLinked">
+        <input type="checkbox"
+               formControlName="syncWithGoogleCalendar"
+               class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+        Đồng bộ Google Calendar và tự tạo link Google Meet
+      </label>
+      <p class="mt-2 text-xs"
+         [class.text-gray-600]="isGoogleLinked"
+         [class.text-gray-500]="!isGoogleLinked">
+        Nếu tắt tùy chọn này, bạn có thể nhập link họp trực tuyến thủ công.
+      </p>
+      <div *ngIf="!isGoogleLinked"
+           class="pointer-events-none absolute left-4 top-full z-10 mt-2 hidden rounded-lg bg-gray-900 px-3 py-2 text-xs text-white shadow-lg group-hover:block">
+        Hãy liên kết Google trong phần Cài đặt để bật đồng bộ cuộc họp.
+      </div>
+    </div>
+
+    <div *ngIf="!syncWithGoogleCalendarControl?.value">
+      <label for="externalMeetingLink" class="block text-sm font-medium text-gray-700 mb-1">
+        Link họp trực tuyến (tùy chọn)
+      </label>
+      <input type="url"
+             id="externalMeetingLink"
+             formControlName="externalMeetingLink"
+             placeholder="https://meet.google.com/..."
+             class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 outline-none"
+             [class.border-red-500]="externalMeetingLinkControl?.invalid && externalMeetingLinkControl?.touched">
+    </div>
+
+    <div *ngIf="syncWithGoogleCalendarControl?.value" class="space-y-4 rounded-xl border border-green-100 bg-green-50 p-4">
+      <div class="text-sm text-gray-700">
+        <p>
+          Đã liên kết Google: <strong>{{ googleStatus?.googleAccountEmail || 'Tài khoản của bạn' }}</strong>
+        </p>
+      </div>
+    </div>
+
+    <div class="rounded-xl border border-gray-200 p-4">
+      <div class="mb-2 flex items-center justify-between">
+        <label for="meetingAttachments" class="text-sm font-semibold text-gray-800">Tài liệu đính kèm</label>
+        <span class="text-xs text-gray-500">Tối đa 10 file, mỗi file 50MB</span>
+      </div>
+
+      <input id="meetingAttachments"
+             type="file"
+             multiple
+             accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.zip,.rar,.jpg,.jpeg,.png"
+             (change)="onAttachmentSelected($event)"
+             class="block w-full cursor-pointer rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-600 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-indigo-700" />
+
+      <p class="mt-2 text-xs text-gray-500">
+        Tài liệu sẽ được tải trực tiếp lên Cloudinary sau khi tạo cuộc họp thành công.
+      </p>
+
+      <div *ngIf="selectedAttachmentFiles.length > 0" class="mt-3 space-y-2">
+        <div *ngFor="let attachment of selectedAttachmentFiles; let i = index"
+             class="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
+          <div class="min-w-0">
+            <p class="truncate text-sm font-medium text-gray-700">{{ attachment.name }}</p>
+            <p class="text-xs text-gray-500">
+              {{ attachment.type || 'Không xác định loại file' }} • {{ formatFileSize(attachment.size) }}
+            </p>
+          </div>
+          <button type="button"
+                  (click)="removeAttachment(i)"
+                  class="ml-2 rounded-md p-1 text-red-500 hover:bg-red-50 hover:text-red-700">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <p *ngIf="selectedAttachmentFiles.length === 0" class="mt-2 text-sm text-gray-500">Chưa có tài liệu nào được đính kèm.</p>
+      <p class="mt-2 text-xs text-gray-600">Tổng dung lượng tạm tính: {{ formatFileSize(totalAttachmentSizeBytes) }}</p>
+    </div>
+
+    <!-- Agenda Field -->
+    <div>
+      <label for="agenda" class="block text-sm font-medium text-gray-700 mb-1">
+        Nội dung cuộc họp
+      </label>
+      <textarea id="agenda"
+                formControlName="agenda"
+                rows="3"
+                placeholder="Mô tả ngắn nội dung cuộc họp"
+                class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 outline-none resize-y"></textarea>
+    </div>
+
+    <div class="rounded-xl border border-gray-200 p-4">
+      <div class="mb-3 flex items-center justify-between">
+        <div>
+          <p class="text-sm font-semibold text-gray-800">Meeting Agenda</p>
+          <p class="text-xs text-gray-500">Thêm mục, kéo-thả để sắp xếp thứ tự, và theo dõi tổng thời lượng.</p>
+        </div>
+        <button type="button"
+                (click)="addAgendaItem()"
+                class="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700">
+          + Thêm mục
+        </button>
+      </div>
+
+      <div class="mb-3 rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-700">
+        Tổng thời lượng: <span class="font-semibold">{{ totalAgendaDurationMinutes }} phút</span>
+      </div>
+
+      <div formArrayName="agendaItems" class="space-y-3">
+        <div *ngFor="let agendaItem of agendaItems.controls; let i = index"
+             [formGroupName]="i"
+             draggable="true"
+             (dragstart)="onAgendaDragStart(i)"
+             (dragover)="onAgendaDragOver($event)"
+             (drop)="onAgendaDrop(i)"
+             (dragend)="onAgendaDragEnd()"
+             class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+          <div class="mb-2 flex items-center justify-between">
+            <p class="text-sm font-medium text-gray-700">Mục #{{ i + 1 }}</p>
+            <button type="button"
+                    (click)="removeAgendaItem(i)"
+                    class="rounded-md p-1 text-red-500 hover:bg-red-50 hover:text-red-700">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600">Tiêu đề mục</label>
+              <input type="text"
+                     formControlName="title"
+                     placeholder="VD: Báo cáo tiến độ"
+                     class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" />
+              <p *ngIf="agendaItem.get('title')?.invalid && (agendaItem.get('title')?.dirty || agendaItem.get('title')?.touched)"
+                 class="mt-1 text-xs text-red-600">
+                Tiêu đề mục là bắt buộc và tối đa 255 ký tự.
+              </p>
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600">Thời lượng (phút)</label>
+              <input type="number"
+                     min="1"
+                     step="1"
+                     formControlName="durationMinutes"
+                     class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" />
+              <p *ngIf="agendaItem.get('durationMinutes')?.invalid && (agendaItem.get('durationMinutes')?.dirty || agendaItem.get('durationMinutes')?.touched)"
+                 class="mt-1 text-xs text-red-600">
+                Thời lượng phải là số nguyên dương.
+              </p>
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600">Thứ tự</label>
+              <input type="number"
+                     formControlName="itemOrder"
+                     readonly
+                     class="w-full rounded-lg border border-gray-200 bg-gray-100 px-3 py-2 text-sm text-gray-500" />
+            </div>
+          </div>
+
+          <div class="mt-3">
+            <label class="mb-1 block text-xs font-medium text-gray-600">Mô tả chi tiết</label>
+            <textarea formControlName="description"
+                      rows="2"
+                      maxlength="2000"
+                      placeholder="Nội dung chi tiết cho agenda item"
+                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"></textarea>
+            <p *ngIf="agendaItem.get('description')?.invalid && (agendaItem.get('description')?.dirty || agendaItem.get('description')?.touched)"
+               class="mt-1 text-xs text-red-600">
+              Mô tả chi tiết là bắt buộc và tối đa 2000 ký tự.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <p *ngIf="agendaItems.length === 0" class="text-sm text-gray-500">
+        Chưa có agenda item nào. Hãy thêm ít nhất 1 mục nếu cần quản lý chi tiết nội dung họp.
+      </p>
+    </div>
+
+    <!-- Date Field -->
+    <div>
+      <label for="date" class="block text-sm font-medium text-gray-700 mb-1">
+        Ngày <span class="text-red-500">*</span>
+      </label>
+      <input type="date"
+             id="date"
+             formControlName="date"
+             [min]="getMinDate()"
+             class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 outline-none"
+             [class.border-red-500]="dateControl?.invalid && dateControl?.touched">
+      <p *ngIf="dateControl?.invalid && dateControl?.touched" class="mt-1 text-sm text-red-500">
+        Vui lòng chọn ngày
+      </p>
+    </div>
+
+    <!-- Time Fields -->
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label for="startTime" class="block text-sm font-medium text-gray-700 mb-1">
+          Bắt đầu <span class="text-red-500">*</span>
+        </label>
+        <input type="time"
+               id="startTime"
+               formControlName="startTime"
+               class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 outline-none"
+               [class.border-red-500]="startTimeControl?.invalid && startTimeControl?.touched">
+      </div>
+      <div>
+        <label for="endTime" class="block text-sm font-medium text-gray-700 mb-1">
+          Kết thúc <span class="text-red-500">*</span>
+        </label>
+        <input type="time"
+               id="endTime"
+               formControlName="endTime"
+               class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 outline-none"
+               [class.border-red-500]="endTimeControl?.invalid && endTimeControl?.touched">
+      </div>
+    </div>
+
+    <!-- Participants Field -->
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1">
+        Người tham gia (tùy chọn)
+      </label>
+      <div class="flex gap-2">
+        <input type="email"
+               [(ngModel)]="participantEmail"
+               [ngModelOptions]="{standalone: true}"
+               (keypress)="onKeyPress($event, participantEmail)"
+               placeholder="Nhập email người tham gia"
+               class="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 outline-none">
+        <button type="button"
+                (click)="addParticipant(participantEmail)"
+                class="px-4 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 active:bg-indigo-800 transition-all duration-200 hover:shadow-md">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Participants List -->
+      <div *ngIf="participantEmails.length > 0" class="mt-3 space-y-2">
+        <div *ngFor="let email of participantEmails.controls; let i = index"
+             class="flex items-center justify-between bg-gray-50 px-3 py-2 rounded-lg">
+          <span class="text-sm text-gray-700">{{ email.value }}</span>
+          <button type="button"
+                  (click)="removeParticipant(i)"
+                  class="text-red-500 hover:text-red-700 hover:bg-red-100 p-1 rounded-full transition-all duration-200">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <p *ngIf="participantEmails.length === 0" class="mt-2 text-sm text-gray-500">
+        Chưa có người tham gia nào được thêm
+      </p>
+    </div>
+
+    <!-- Submit Button -->
+    <button type="submit"
+            [disabled]="isSubmitting"
+            class="w-full py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 active:bg-indigo-800 transition-all duration-200 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+      <svg *ngIf="isSubmitting" class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <svg *ngIf="!isSubmitting" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+      </svg>
+      {{ isSubmitting ? 'Đang tạo...' : 'Xác nhận tạo' }}
+    </button>
+  </form>
+  <!-- Success Message -->
+  <div *ngIf="successMessage" 
+       class="mb-4 p-3 bg-green-100 border border-green-300 text-green-700 rounded-lg flex items-center gap-2 animate-fade-in">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+    </svg>
+    {{ successMessage }}
+  </div>
+
+  <!-- Error Message -->
+  <div *ngIf="errorMessage" 
+       class="mb-4 p-3 bg-red-100 border border-red-300 text-red-700 rounded-lg flex items-center gap-2">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+    {{ errorMessage }}
+  </div>
+</div>

@@ -1,0 +1,13 @@
+/* Meeting Component Styles */
+
+/* Apply Inter font globally within this component */
+:host {
+  font-family: 'Inter', 'Roboto', sans-serif;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+  .flex-col {
+    flex-direction: column-reverse;
+  }
+}

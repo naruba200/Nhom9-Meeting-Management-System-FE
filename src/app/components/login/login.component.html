@@ -1,0 +1,67 @@
+<div class="login-container">
+  <div class="login-card">
+    <h2>Đăng Nhập</h2>
+    
+    <div *ngIf="successMessage" class="alert alert-success">
+      {{ successMessage }}
+    </div>
+    
+    <div *ngIf="errorMessage" class="alert alert-error">
+      {{ errorMessage }}
+    </div>
+
+    <form (ngSubmit)="onSubmit(loginForm)" #loginForm="ngForm" novalidate>
+      <div class="form-group">
+        <label for="email">Email:</label>
+        <input 
+          type="email" 
+          id="email" 
+          name="email" 
+          [(ngModel)]="loginData.email" 
+          [disabled]="isLoading"
+          required 
+          email
+          placeholder="Nhập email của bạn"
+          #emailModel="ngModel"
+          [class.input-error]="emailModel.invalid && (emailModel.touched || loginForm.submitted)"
+        />
+        <div class="field-error" *ngIf="emailModel.invalid && (emailModel.touched || loginForm.submitted)">
+          <span *ngIf="emailModel.errors?.['required']">Vui lòng nhập email.</span>
+          <span *ngIf="emailModel.errors?.['email']">Email không đúng định dạng.</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="password">Mật khẩu:</label>
+        <input 
+          type="password" 
+          id="password" 
+          name="password" 
+          [(ngModel)]="loginData.password" 
+          [disabled]="isLoading"
+          required 
+          placeholder="Nhập mật khẩu"
+          #passwordModel="ngModel"
+          [class.input-error]="passwordModel.invalid && (passwordModel.touched || loginForm.submitted)"
+        />
+        <div class="field-error" *ngIf="passwordModel.invalid && (passwordModel.touched || loginForm.submitted)">
+          Vui lòng nhập mật khẩu.
+        </div>
+      </div>
+
+      <button 
+        type="submit" 
+        class="btn btn-primary" 
+        [disabled]="isLoading"
+      >
+        <span *ngIf="!isLoading">Đăng Nhập</span>
+        <span *ngIf="isLoading">Đang xử lý...</span>
+      </button>
+    </form>
+
+    <div class="login-links">
+      <a routerLink="/forgot-password" class="link">Quên mật khẩu?</a>
+      <a routerLink="/register" class="link">Chưa có tài khoản? Đăng ký</a>
+    </div>
+  </div>
+</div>

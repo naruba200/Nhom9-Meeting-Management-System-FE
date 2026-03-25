@@ -1,0 +1,55 @@
+<div class="otp-container">
+  <div class="otp-card">
+    <h2>Xác Minh OTP</h2>
+    
+    <div *ngIf="successMessage" class="alert alert-success">
+      {{ successMessage }}
+    </div>
+    
+    <div *ngIf="errorMessage" class="alert alert-error">
+      {{ errorMessage }}
+    </div>
+
+    <form (ngSubmit)="onSubmit()">
+      <div class="form-group">
+        <label for="email">Email:</label>
+        <input 
+          type="email" 
+          id="email" 
+          name="email" 
+          [(ngModel)]="otpData.email" 
+          required 
+          readonly
+          placeholder="Email của bạn"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="otp">Mã OTP:</label>
+        <input 
+          type="text" 
+          id="otp" 
+          name="otp" 
+          [(ngModel)]="otpData.otp" 
+          required 
+          maxlength="6"
+          placeholder="Nhập mã OTP 6 số"
+        />
+      </div>
+
+      <button 
+        type="submit" 
+        class="btn btn-primary" 
+        [disabled]="isLoading"
+      >
+        <span *ngIf="!isLoading">Xác Minh</span>
+        <span *ngIf="isLoading">Đang xử lý...</span>
+      </button>
+    </form>
+
+    <div class="otp-links">
+      <button (click)="resendOtp()" class="btn btn-secondary">Gửi lại OTP</button>
+      <a routerLink="/login" class="link">Quay lại đăng nhập</a>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,129 @@
+<div class="register-container">
+  <div class="register-card">
+    <h2>Đăng Ký</h2>
+    
+    <div *ngIf="successMessage" class="alert alert-success">
+      {{ successMessage }}
+      <div *ngIf="showOtpVerification" class="otp-info">
+        <p>Vui lòng kiểm tra email và xác minh OTP để hoàn tất đăng ký.</p>
+        <p>Đang chuyển sang trang xác minh OTP...</p>
+      </div>
+    </div>
+    
+    <div *ngIf="errorMessage" class="alert alert-error">
+      {{ errorMessage }}
+    </div>
+
+    <form (ngSubmit)="onSubmit(registerForm)" #registerForm="ngForm" *ngIf="!showOtpVerification" novalidate>
+      <div class="form-group">
+        <label for="fullName">Họ và tên:</label>
+        <input 
+          type="text" 
+          id="fullName" 
+          name="fullName" 
+          [(ngModel)]="registerData.fullName" 
+          [disabled]="isLoading"
+          required 
+          placeholder="Nhập họ và tên của bạn"
+          #fullNameModel="ngModel"
+          [class.input-error]="fullNameModel.invalid && (fullNameModel.touched || registerForm.submitted)"
+        />
+        <div class="field-error" *ngIf="fullNameModel.invalid && (fullNameModel.touched || registerForm.submitted)">
+          Vui lòng nhập họ và tên.
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="email">Email:</label>
+        <input 
+          type="email" 
+          id="email" 
+          name="email" 
+          [(ngModel)]="registerData.email" 
+          [disabled]="isLoading"
+          required 
+          email
+          placeholder="Nhập email của bạn"
+          #emailModel="ngModel"
+          [class.input-error]="emailModel.invalid && (emailModel.touched || registerForm.submitted)"
+        />
+        <div class="field-error" *ngIf="emailModel.invalid && (emailModel.touched || registerForm.submitted)">
+          <span *ngIf="emailModel.errors?.['required']">Vui lòng nhập email.</span>
+          <span *ngIf="emailModel.errors?.['email']">Email không đúng định dạng.</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="phone">Số điện thoại:</label>
+        <input 
+          type="tel" 
+          id="phone" 
+          name="phone" 
+          [(ngModel)]="registerData.phone" 
+          [disabled]="isLoading"
+          required 
+          placeholder="Nhập số điện thoại của bạn"
+          #phoneModel="ngModel"
+          [class.input-error]="phoneModel.invalid && (phoneModel.touched || registerForm.submitted)"
+        />
+        <div class="field-error" *ngIf="phoneModel.invalid && (phoneModel.touched || registerForm.submitted)">
+          Vui lòng nhập số điện thoại.
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="password">Mật khẩu:</label>
+        <input 
+          type="password" 
+          id="password" 
+          name="password" 
+          [(ngModel)]="registerData.password" 
+          [disabled]="isLoading"
+          required 
+          minlength="6"
+          placeholder="Nhập mật khẩu (tối thiểu 6 ký tự)"
+          #passwordModel="ngModel"
+          [class.input-error]="passwordModel.invalid && (passwordModel.touched || registerForm.submitted)"
+        />
+        <div class="field-error" *ngIf="passwordModel.invalid && (passwordModel.touched || registerForm.submitted)">
+          <span *ngIf="passwordModel.errors?.['required']">Vui lòng nhập mật khẩu.</span>
+          <span *ngIf="passwordModel.errors?.['minlength']">Mật khẩu phải có ít nhất 6 ký tự.</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="confirmPassword">Xác nhận mật khẩu:</label>
+        <input 
+          type="password" 
+          id="confirmPassword" 
+          name="confirmPassword" 
+          [(ngModel)]="confirmPassword" 
+          [disabled]="isLoading"
+          required 
+          placeholder="Nhập lại mật khẩu"
+          #confirmPasswordModel="ngModel"
+          [class.input-error]="confirmPasswordModel.invalid && (confirmPasswordModel.touched || registerForm.submitted)"
+        />
+        <div class="field-error" *ngIf="confirmPasswordModel.invalid && (confirmPasswordModel.touched || registerForm.submitted)">
+          Vui lòng nhập lại mật khẩu.
+        </div>
+        <div class="field-error" *ngIf="registerData.password && confirmPassword && registerData.password !== confirmPassword">
+          Mật khẩu xác nhận không khớp.
+        </div>
+      </div>
+
+      <button 
+        type="submit" 
+        class="btn btn-primary" 
+        [disabled]="isLoading"
+      >
+        <span *ngIf="!isLoading">Đăng Ký</span>
+        <span *ngIf="isLoading">Đang xử lý...</span>
+      </button>
+    </form>
+
+    <div class="register-links" *ngIf="!showOtpVerification">
+      <a routerLink="/login" class="link">Đã có tài khoản? Đăng nhập</a>
+    </div>
+  </div>
+</div>
