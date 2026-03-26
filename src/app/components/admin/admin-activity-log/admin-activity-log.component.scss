@@ -57,6 +57,7 @@
 .filters-card {
   padding: 1.8rem;
   margin-bottom: 1.5rem;
+  overflow-x: auto;
 
   h3 {
     margin: 0 0 1.2rem;
@@ -66,9 +67,10 @@
 
   .filters-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    grid-template-columns: repeat(5, minmax(185px, 1fr));
     gap: 1.2rem;
     margin-bottom: 1.2rem;
+    min-width: 980px;
   }
 
   .filter-group {
@@ -103,8 +105,10 @@
 
   .filter-actions {
     display: flex;
-    justify-content: flex-end;
+    justify-content: space-between;
+    align-items: center;
     gap: 0.8rem;
+    margin-top: 0.3rem;
 
     .clear-btn,
     .export-btn {

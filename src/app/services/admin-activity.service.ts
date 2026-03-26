@@ -82,9 +82,9 @@ export class AdminActivityService {
     if (filter.startDate) params = params.set('startDate', filter.startDate);
     if (filter.endDate) params = params.set('endDate', filter.endDate);
 
-    return this.http.get<Blob>(`${this.apiUrl}/export`, { 
+    return this.http.get(`${this.apiUrl}/export`, {
       params,
-      responseType: 'blob' as 'json'
+      responseType: 'blob'
     });
   }
 }

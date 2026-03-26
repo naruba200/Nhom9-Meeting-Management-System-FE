@@ -28,7 +28,6 @@ export class AdminActivityLogComponent implements OnInit, OnDestroy {
   pageSize: number = 20;
   totalElements: number = 0;
   totalPages: number = 0;
-  pageSizeOptions: number[] = [10, 20, 50, 100];
 
   // Filters
   actionTypeFilter: string = '';
@@ -39,7 +38,7 @@ export class AdminActivityLogComponent implements OnInit, OnDestroy {
 
   // Action types and entity types for dropdowns
   actionTypes = ['CREATE', 'UPDATE', 'DELETE', 'LOGIN', 'LOGOUT', 'VIEW', 'DOWNLOAD', 'EXPORT', 'OTHER'];
-  entityTypes = ['USER', 'FILE', 'MEETING', 'NOTIFICATION', 'SYSTEM'];
+  entityTypes = ['USER', 'FILE', 'MEETING', 'NOTIFICATION', 'TASK', 'INVITATION', 'MINUTES', 'SYSTEM', 'OTHER'];
 
   constructor(
     private activityService: AdminActivityService,
@@ -111,12 +110,6 @@ export class AdminActivityLogComponent implements OnInit, OnDestroy {
     }
   }
 
-  onPageSizeChange(newSize: number): void {
-    this.pageSize = newSize;
-    this.currentPage = 0;
-    this.loadActivities();
-  }
-
   clearFilters(): void {
     this.actionTypeFilter = '';
     this.entityTypeFilter = '';
@@ -129,6 +122,8 @@ export class AdminActivityLogComponent implements OnInit, OnDestroy {
 
   exportLogs(): void {
     console.log('[AdminActivityLog] Exporting activity logs');
+    this.error = null;
+
     const filter: ActivityLogFilterRequest = {
       actionType: this.actionTypeFilter || undefined,
       entityType: this.entityTypeFilter || undefined,
@@ -139,11 +134,18 @@ export class AdminActivityLogComponent implements OnInit, OnDestroy {
 
     this.activityService.exportActivityLogs(filter).subscribe({
       next: (blob) => {
+        if (!blob || blob.size === 0) {
+          this.error = 'Không có dữ liệu để xuất CSV với bộ lọc hiện tại.';
+          return;
+        }
+
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
         link.download = `activity-logs-${new Date().getTime()}.csv`;
+        document.body.appendChild(link);
         link.click();
+        document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
       },
       error: (err) => {

@@ -1,4 +1,4 @@
-<div class="min-h-screen bg-gray-100">
+<div class="admin-dashboard-page">
   <admin-header [userInfo]="userInfo"></admin-header>
     <div class="admin-dashboard-container">
       <div class="admin-content">
@@ -54,6 +54,34 @@
           <h3>Tổng Notifications</h3>
           <p class="stat-value">{{ stats?.totalNotifications || 0 }}</p>
         </div>
+      </div>
+    </div>
+
+    <div class="backup-section" *ngIf="!loading && !error">
+      <div class="backup-content">
+        <h3>Sao lưu cơ sở dữ liệu</h3>
+        <p>Tạo bản sao thủ công của toàn bộ dữ liệu hệ thống và tải xuống dưới dạng file SQL dump (.sql).</p>
+
+        <div class="backup-actions">
+          <button
+            class="backup-btn"
+            [disabled]="backupLoading"
+            (click)="createDatabaseBackup()"
+          >
+            {{ backupLoading ? 'Đang tạo bản sao...' : 'Tạo bản sao CSDL' }}
+          </button>
+
+          <button
+            class="backup-btn cloudinary-btn"
+            [disabled]="cloudBackupLoading"
+            (click)="createCloudinaryBackupNow()"
+          >
+            {{ cloudBackupLoading ? 'Đang tải lên Cloudinary...' : 'Backup Cloudinary Ngay' }}
+          </button>
+        </div>
+
+        <p class="backup-message" *ngIf="backupMessage">{{ backupMessage }}</p>
+        <p class="backup-error" *ngIf="backupError">{{ backupError }}</p>
       </div>
     </div>
 
