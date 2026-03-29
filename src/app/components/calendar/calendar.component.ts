@@ -1,9 +1,10 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnDestroy, OnInit, PLATFORM_ID, inject, ChangeDetectorRef } from '@angular/core';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { MeetingService } from '../../services/meeting.service';
 import { Meeting } from '../../models/meeting.models';
+import { NavbarComponent } from '../navbar/navbar.component';
 
 interface CalendarEvent {
   id: string;
@@ -24,37 +25,49 @@ interface CalendarCategory {
 @Component({
   selector: 'app-calendar',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, NavbarComponent],
   templateUrl: './calendar.component.html',
   styleUrls: ['./calendar.component.css']
 })
 export class CalendarComponent implements OnInit, OnDestroy {
+  private readonly platformId = inject(PLATFORM_ID);
   currentDate: Date = new Date();
   selectedDate: Date = new Date();
   viewMode: 'day' | 'week' | 'month' = 'week';
-  
+
   weekDays: string[] = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
   hours: number[] = Array.from({ length: 24 }, (_, i) => i);
-  
+
   miniCalendarDays: (number | null)[] = [];
   miniCalendarMonth: Date = new Date();
-  
+
   categories: CalendarCategory[] = [
     { id: 'meeting', name: 'Cuộc họp', color: '#4285f4', checked: true }
   ];
-  
+
   events: CalendarEvent[] = [];
   weekDates: Date[] = [];
   monthDates: (Date | null)[] = [];
   loading = false;
   errorMessage = '';
   private readonly subscriptions: Subscription[] = [];
-  
+
   showCreateModal: boolean = false;
 
-  constructor(private meetingService: MeetingService) {}
+  constructor(
+    private meetingService: MeetingService,
+    private cdr: ChangeDetectorRef
+  ) {}
 
   ngOnInit(): void {
+    if (!isPlatformBrowser(this.platformId)) {
+      console.log('[Calendar] Bỏ qua load meetings khi đang render phía server');
+      this.loading = false;
+      this.cdr.detectChanges();
+      return;
+    }
+
+    console.log('[Calendar] Bắt đầu tải lịch');
     this.generateMiniCalendar();
     this.generateWeekDates();
     this.generateMonthDates();
@@ -142,10 +155,12 @@ export class CalendarComponent implements OnInit, OnDestroy {
     const sub = this.meetingService.loadMeetings().subscribe({
       next: () => {
         this.loading = false;
+        this.cdr.detectChanges();
       },
       error: (error) => {
         this.errorMessage = error?.error?.message || 'Không thể tải dữ liệu cuộc họp cho lịch.';
         this.loading = false;
+        this.cdr.detectChanges();
       },
     });
 

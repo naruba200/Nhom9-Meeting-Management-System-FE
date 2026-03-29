@@ -17,25 +17,57 @@ import { FormsModule } from '@angular/forms';
         Trước
       </button>
 
-      <!-- Page Numbers -->
-      <ng-container *ngFor="let page of visiblePages">
-        <button
-          *ngIf="page !== 'ellipsis'"
-          (click)="onPageChange(+page)"
-          [class]="'px-4 py-2 text-sm font-medium rounded-lg border transition-colors ' +
-                   (currentPage === +page 
-                     ? 'bg-indigo-600 border-indigo-600 text-white' 
-                     : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50')"
-        >
-          {{ page }}
-        </button>
-        <span
-          *ngIf="page === 'ellipsis'"
-          class="px-2 text-gray-500"
-        >
-          ...
-        </span>
-      </ng-container>
+      <!-- First Page -->
+      <button
+        (click)="onPageChange(1)"
+        [class]="'px-4 py-2 text-sm font-medium rounded-lg border transition-colors ' +
+                 (currentPage === 1
+                   ? 'bg-indigo-600 border-indigo-600 text-white'
+                   : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50')"
+      >
+        1
+      </button>
+
+      <!-- Ellipsis (hidden if current page is 1 or 2) -->
+      <span
+        *ngIf="currentPage > 2"
+        class="px-2 text-gray-500"
+      >
+        ...
+      </span>
+
+      <!-- Current Page Input -->
+      <div *ngIf="currentPage > 1 && currentPage < totalPages" class="flex items-center">
+        <input
+          type="number"
+          [ngModel]="currentPage"
+          (ngModelChange)="onInputPageChange($event)"
+          (blur)="onInputBlur()"
+          min="1"
+          [max]="totalPages"
+          class="w-16 px-3 py-2 text-sm font-medium text-center rounded-lg border border-gray-300 bg-white text-gray-700 hover:border-gray-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        />
+        <span class="ml-2 text-sm text-gray-600">/ {{ totalPages }}</span>
+      </div>
+
+      <!-- Ellipsis (hidden if current page is last or second to last) -->
+      <span
+        *ngIf="currentPage < totalPages - 1"
+        class="px-2 text-gray-500"
+      >
+        ...
+      </span>
+
+      <!-- Last Page -->
+      <button
+        (click)="onPageChange(totalPages)"
+        [class]="'px-4 py-2 text-sm font-medium rounded-lg border transition-colors ' +
+                 (currentPage === totalPages
+                   ? 'bg-indigo-600 border-indigo-600 text-white'
+                   : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50')"
+      >
+        {{ totalPages }}
+      </button>
 
       <!-- Next Button -->
       <button
@@ -73,6 +105,7 @@ export class PaginationComponent implements OnChanges {
   @Output() pageSizeChange = new EventEmitter<number>();
 
   pageSizeInternal = 10;
+  inputPageValue: number | null = null;
 
   ngOnInit(): void {
     this.pageSizeInternal = this.pageSize;
@@ -88,33 +121,18 @@ export class PaginationComponent implements OnChanges {
     return Math.ceil(this.totalItems / this.pageSize);
   }
 
-  get visiblePages(): (string | number)[] {
-    const pages: (string | number)[] = [];
-    const total = this.totalPages;
-    const current = this.currentPage;
+  onInputPageChange(value: number): void {
+    this.inputPageValue = value;
+  }
 
-    if (total <= 7) {
-      // Nếu tổng số trang <= 7, hiển thị tất cả
-      for (let i = 1; i <= total; i++) {
-        pages.push(i);
-      }
-    } else {
-      // Luôn hiển thị trang đầu và trang cuối
-      pages.push(1);
-
-      if (current <= 4) {
-        // Khi ở gần đầu
-        pages.push(2, 3, 4, 5, 'ellipsis', total);
-      } else if (current >= total - 3) {
-        // Khi ở gần cuối
-        pages.push('ellipsis', total - 4, total - 3, total - 2, total - 1, total);
-      } else {
-        // Khi ở giữa
-        pages.push('ellipsis', current - 1, current, current + 1, 'ellipsis', total);
-      }
+  onInputBlur(): void {
+    if (this.inputPageValue !== null) {
+      let newPage = Math.floor(this.inputPageValue);
+      if (newPage < 1) newPage = 1;
+      if (newPage > this.totalPages) newPage = this.totalPages;
+      this.onPageChange(newPage);
+      this.inputPageValue = null;
     }
-
-    return pages;
   }
 
   onPageChange(page: number): void {

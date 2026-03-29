@@ -48,6 +48,53 @@ export interface Meeting {
   attachments: MeetingAttachment[];
 }
 
+/**
+ * Kiểm tra xem cuộc họp có đang diễn ra hay không
+ */
+export function isMeetingOngoing(meeting: Meeting): boolean {
+  const now = new Date();
+  const start = new Date(meeting.startTime);
+  const end = new Date(meeting.endTime);
+  return now >= start && now <= end;
+}
+
+/**
+ * Kiểm tra xem cuộc họp đã kết thúc chưa
+ */
+export function isMeetingEnded(meeting: Meeting): boolean {
+  const now = new Date();
+  const end = new Date(meeting.endTime);
+  return now > end;
+}
+
+/**
+ * Kiểm tra xem cuộc họp đã kết thúc trong vòng 24 giờ qua chưa
+ * Trả về số giờ còn lại trước khi chuyển sang lịch sử (sau 24h kể từ khi kết thúc)
+ */
+export function getHoursUntilHistory(meeting: Meeting): number {
+  const now = new Date();
+  const end = new Date(meeting.endTime);
+  const historyThreshold = new Date(end.getTime() + 24 * 60 * 60 * 1000);
+  
+  if (now >= historyThreshold) {
+    return 0; // Đã chuyển sang lịch sử
+  }
+  
+  const diffMs = historyThreshold.getTime() - now.getTime();
+  return Math.ceil(diffMs / (1000 * 60 * 60)); // Số giờ còn lại
+}
+
+/**
+ * Kiểm tra xem cuộc họp có trong trạng thái "sắp chuyển sang lịch sử" không (trong vòng 24h sau khi kết thúc)
+ */
+export function isMeetingPendingHistory(meeting: Meeting): boolean {
+  if (meeting.status !== 'completed') {
+    return false;
+  }
+  const hoursUntil = getHoursUntilHistory(meeting);
+  return hoursUntil > 0;
+}
+
 export interface CreateMeetingRequest {
   title: string;
   agenda?: string;

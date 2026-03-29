@@ -19,7 +19,7 @@
       </div>
       <div class="task-list">
         @for (task of todoTasks(); track task.id) {
-          <div class="task-card">
+          <div class="task-card" (click)="openTaskDetail(task)">
             <div class="task-card-header">
               <h4 class="task-name">{{ task.title }}</h4>
               <div class="task-actions" *ngIf="canManageTasks(task)">
@@ -39,6 +39,9 @@
             <p class="task-description" *ngIf="task.description">{{ task.description }}</p>
             <p class="task-assignee">👤 {{ task.assigneeEmail }}</p>
             <p class="task-meeting" *ngIf="showMeetingInfo() && task.meetingTitle">📅 {{ task.meetingTitle }}</p>
+            <p class="task-due-date" *ngIf="task.dueDate" [class.overdue]="isOverdue(task.dueDate)">
+              📆 {{ formatDate(task.dueDate) }}
+            </p>
 
             <!-- Subtasks -->
             <div class="subtasks" *ngIf="task.subtasks.length > 0">
@@ -73,7 +76,7 @@
       </div>
       <div class="task-list">
         @for (task of inProgressTasks(); track task.id) {
-          <div class="task-card">
+          <div class="task-card" (click)="openTaskDetail(task)">
             <div class="task-card-header">
               <h4 class="task-name">{{ task.title }}</h4>
               <div class="task-actions" *ngIf="canManageTasks(task)">
@@ -93,6 +96,9 @@
             <p class="task-description" *ngIf="task.description">{{ task.description }}</p>
             <p class="task-assignee">👤 {{ task.assigneeEmail }}</p>
             <p class="task-meeting" *ngIf="showMeetingInfo() && task.meetingTitle">📅 {{ task.meetingTitle }}</p>
+            <p class="task-due-date" *ngIf="task.dueDate" [class.overdue]="isOverdue(task.dueDate)">
+              📆 {{ formatDate(task.dueDate) }}
+            </p>
 
             <!-- Subtasks -->
             <div class="subtasks" *ngIf="task.subtasks.length > 0">
@@ -130,7 +136,7 @@
       </div>
       <div class="task-list">
         @for (task of completedTasks(); track task.id) {
-          <div class="task-card task-card-completed">
+          <div class="task-card task-card-completed" (click)="openTaskDetail(task)">
             <div class="task-card-header">
               <h4 class="task-name">{{ task.title }}</h4>
               <div class="task-actions" *ngIf="canManageTasks(task)">
@@ -150,6 +156,9 @@
             <p class="task-description" *ngIf="task.description">{{ task.description }}</p>
             <p class="task-assignee">👤 {{ task.assigneeEmail }}</p>
             <p class="task-meeting" *ngIf="showMeetingInfo() && task.meetingTitle">📅 {{ task.meetingTitle }}</p>
+            <p class="task-due-date" *ngIf="task.dueDate" [class.overdue]="isOverdue(task.dueDate)">
+              📆 {{ formatDate(task.dueDate) }}
+            </p>
 
             <!-- Subtasks -->
             <div class="subtasks" *ngIf="task.subtasks.length > 0">
@@ -214,6 +223,11 @@
           </span>
         </div>
 
+        <div class="form-group">
+          <label for="dueDate">Hạn chót</label>
+          <input type="date" id="dueDate" formControlName="dueDate" class="form-control">
+        </div>
+
         <!-- Subtasks -->
         <div class="form-group">
           <label>Công việc nhỏ</label>
@@ -273,6 +287,88 @@
       <div class="modal-footer">
         <button class="btn-secondary" (click)="closeDeleteConfirm()">Hủy</button>
         <button class="btn-danger" (click)="confirmDelete()">Xoá</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Task Detail -->
+  <div class="modal-overlay" *ngIf="showTaskDetail() && selectedTaskForDetail()" (click)="closeTaskDetail()">
+    <div class="modal-content modal-large" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>Chi tiết công việc</h2>
+        <button class="btn-close" (click)="closeTaskDetail()">×</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="detail-section">
+          <h3 class="detail-title">Tiêu đề</h3>
+          <p class="detail-content">{{ selectedTaskForDetail()?.title }}</p>
+        </div>
+
+        <div class="detail-section" *ngIf="selectedTaskForDetail()?.description">
+          <h3 class="detail-title">Mô tả</h3>
+          <p class="detail-content">{{ selectedTaskForDetail()?.description }}</p>
+        </div>
+
+        <div class="detail-row">
+          <div class="detail-section" style="flex: 1;">
+            <h3 class="detail-title">Trạng thái</h3>
+            <span class="status-badge" [style.background]="getStatusColor(selectedTaskForDetail()!.status)">
+              {{ getStatusText(selectedTaskForDetail()!.status) }}
+            </span>
+          </div>
+
+          <div class="detail-section" style="flex: 1;">
+            <h3 class="detail-title">Người được giao</h3>
+            <p class="detail-content">👤 {{ selectedTaskForDetail()?.assigneeEmail }}</p>
+          </div>
+        </div>
+
+        <div class="detail-row">
+          <div class="detail-section" style="flex: 1;" *ngIf="selectedTaskForDetail()?.dueDate">
+            <h3 class="detail-title">Hạn chót</h3>
+            <p class="detail-content" [class.overdue]="isOverdue(selectedTaskForDetail()!.dueDate!)">
+              📆 {{ formatDate(selectedTaskForDetail()!.dueDate!) }}
+            </p>
+          </div>
+
+          <div class="detail-section" style="flex: 1;" *ngIf="showMeetingInfo() && selectedTaskForDetail()?.meetingTitle">
+            <h3 class="detail-title">Cuộc họp</h3>
+            <p class="detail-content">📅 {{ selectedTaskForDetail()?.meetingTitle }}</p>
+          </div>
+        </div>
+
+        <div class="detail-section" *ngIf="selectedTaskForDetail()?.subtasks && selectedTaskForDetail()!.subtasks.length > 0">
+          <h3 class="detail-title">Công việc nhỏ</h3>
+          <div class="subtasks-list">
+            @for (subtask of selectedTaskForDetail()!.subtasks; track subtask.id) {
+              <div class="subtask-detail-item">
+                <input type="checkbox"
+                       [checked]="subtask.status === 'COMPLETED'"
+                       [disabled]="true"
+                       class="subtask-checkbox">
+                <span class="subtask-title" [class.completed]="subtask.status === 'COMPLETED'">{{ subtask.title }}</span>
+              </div>
+            }
+          </div>
+        </div>
+
+        <div class="detail-section" *ngIf="selectedTaskForDetail()?.createdAt">
+          <h3 class="detail-title">Thời gian tạo</h3>
+          <p class="detail-content">{{ formatDate(selectedTaskForDetail()!.createdAt!) }}</p>
+        </div>
+
+        <div class="detail-section" *ngIf="selectedTaskForDetail()?.completedAt">
+          <h3 class="detail-title">Hoàn thành lúc</h3>
+          <p class="detail-content">{{ formatDate(selectedTaskForDetail()!.completedAt!) }}</p>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="closeTaskDetail()">Đóng</button>
+        <button class="btn-primary" (click)="openEditTaskModal(selectedTaskForDetail()!); closeTaskDetail()" *ngIf="canManageTasks(selectedTaskForDetail()!)">
+          Chỉnh sửa
+        </button>
       </div>
     </div>
   </div>

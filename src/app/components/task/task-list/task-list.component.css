@@ -167,6 +167,18 @@
   font-weight: 500;
 }
 
+.task-due-date {
+  margin: 0.25rem 0;
+  color: #6b7280;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.task-due-date.overdue {
+  color: #ef4444;
+  font-weight: 600;
+}
+
 .subtasks {
   margin-top: 0.75rem;
   padding-top: 0.75rem;
@@ -436,6 +448,71 @@
   gap: 1rem;
 }
 
+/* Task Detail Modal Styles */
+.modal-content.modal-large {
+  max-width: 700px;
+}
+
+.detail-section {
+  margin-bottom: 1.5rem;
+}
+
+.detail-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #6b7280;
+  margin: 0 0 0.5rem 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.detail-content {
+  font-size: 1rem;
+  color: #1f2937;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.detail-content.overdue {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.detail-row {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  color: white;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.subtasks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 0.5rem;
+}
+
+.subtask-detail-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+}
+
+.subtask-detail-item .subtask-checkbox {
+  cursor: not-allowed;
+}
+
 @media (max-width: 768px) {
   .task-columns {
     grid-template-columns: 1fr;
@@ -447,5 +524,10 @@
 
   .modal-content {
     width: 95%;
+  }
+
+  .detail-row {
+    flex-direction: column;
+    gap: 1rem;
   }
 }

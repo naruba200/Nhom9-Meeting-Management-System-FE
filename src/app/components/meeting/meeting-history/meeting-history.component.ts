@@ -2,7 +2,7 @@ import { ChangeDetectorRef, Component, OnDestroy, OnInit, PLATFORM_ID, inject } 
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subscription, timeout, TimeoutError } from 'rxjs';
-import { Meeting, MeetingStatus } from '../../../models/meeting.models';
+import { Meeting, MeetingStatus, isMeetingPendingHistory, getHoursUntilHistory } from '../../../models/meeting.models';
 import { MeetingService } from '../../../services/meeting.service';
 import { AuthService } from '../../../services/auth.service';
 import { NavbarComponent } from '../../navbar/navbar.component';
@@ -32,6 +32,14 @@ export class MeetingHistoryComponent implements OnInit, OnDestroy {
   // Pagination
   currentPage = 1;
   pageSize = 10;
+  totalPages = 0;
+  totalElements = 0;
+  isFirstPage = true;
+  isLastPage = true;
+
+  // Store total counts for stats display (independent of pagination/filtering)
+  totalCompletedCount = 0;
+  totalCancelledCount = 0;
 
   // Minutes modal
   viewMinutes: MeetingMinutes | null = null;
@@ -69,28 +77,38 @@ export class MeetingHistoryComponent implements OnInit, OnDestroy {
     this.accountFullName = userInfo?.fullName || '';
     this.accountRole = this.authService.getRole() || 'USER';
 
-    const meetingsSub = this.meetingService.getMeetings().subscribe((meetings) => {
-      this.meetings = meetings;
-      this.cdr.detectChanges();
-    });
-    this.subscriptions.push(meetingsSub);
+    this.loadHistoryMeetings();
+  }
 
-    const loadSub = this.meetingService.loadMeetings().pipe(timeout(10000)).subscribe({
-      next: () => {
-        this.loading = false;
-        this.errorMessage = '';
-        this.cdr.detectChanges();
-      },
-      error: (error) => {
-        this.loading = false;
-        if (error instanceof TimeoutError) {
-          this.errorMessage = 'Máy chủ không phản hồi khi tải lịch sử cuộc họp. Vui lòng thử lại.';
-        } else {
-          this.errorMessage = error?.error?.message || 'Không thể tải lịch sử cuộc họp.';
+  loadHistoryMeetings(): void {
+    this.loading = true;
+    this.errorMessage = '';
+
+    // Load all history meetings at once (client-side pagination)
+    const loadSub = this.meetingService.getHistoryMeetingsPaginated(0, 10000, this.sortOrder)
+      .pipe(timeout(10000))
+      .subscribe({
+        next: (response) => {
+          this.meetings = response.content;
+          
+          // Calculate total counts from all loaded meetings
+          this.totalCompletedCount = this.meetings.filter(m => m.status === 'completed').length;
+          this.totalCancelledCount = this.meetings.filter(m => m.status === 'cancelled').length;
+          this.totalElements = this.meetings.length;
+          
+          this.loading = false;
+          this.cdr.detectChanges();
+        },
+        error: (error) => {
+          this.loading = false;
+          if (error instanceof TimeoutError) {
+            this.errorMessage = 'Máy chủ không phản hồi khi tải lịch sử cuộc họp. Vui lòng thử lại.';
+          } else {
+            this.errorMessage = error?.error?.message || 'Không thể tải lịch sử cuộc họp.';
+          }
+          this.cdr.detectChanges();
         }
-        this.cdr.detectChanges();
-      }
-    });
+      });
     this.subscriptions.push(loadSub);
   }
 
@@ -98,12 +116,17 @@ export class MeetingHistoryComponent implements OnInit, OnDestroy {
     this.subscriptions.forEach((sub) => sub.unsubscribe());
   }
 
-  get historyMeetings(): Meeting[] {
-    const statuses = ['completed', 'cancelled'];
-
+  get filteredHistoryMeetings(): Meeting[] {
+    // Filter by search keyword and user participation only (status already filtered by API)
     const filtered = this.meetings.filter((meeting) => {
-      const inHistory = statuses.includes(meeting.status);
-      if (!inHistory) {
+      // Check if meeting is in history (user is organizer or accepted participant)
+      const isOrganizer = meeting.organizerEmail === this.accountEmail;
+      const isAcceptedParticipant = meeting.participants.some(
+        p => p.email === this.accountEmail && p.status === 'accepted'
+      );
+
+      const isInHistory = isOrganizer || isAcceptedParticipant;
+      if (!isInHistory) {
         return false;
       }
 
@@ -138,30 +161,41 @@ export class MeetingHistoryComponent implements OnInit, OnDestroy {
   get paginatedHistoryMeetings(): Meeting[] {
     const start = (this.currentPage - 1) * this.pageSize;
     const end = start + this.pageSize;
-    return this.historyMeetings.slice(start, end);
+    return this.filteredHistoryMeetings.slice(start, end);
   }
 
   get totalHistoryMeetings(): number {
-    return this.historyMeetings.length;
+    return this.filteredHistoryMeetings.length;
   }
 
   onPageChange(page: number): void {
     this.currentPage = page;
-    this.cdr.detectChanges();
   }
 
   onPageSizeChange(pageSize: number): void {
     this.pageSize = pageSize;
     this.currentPage = 1;
-    this.cdr.detectChanges();
+  }
+
+  onSortChange(): void {
+    this.currentPage = 1;
+    this.loadHistoryMeetings();
+  }
+
+  onStatusFilterChange(): void {
+    this.currentPage = 1;
+  }
+
+  onSearch(): void {
+    this.currentPage = 1;
   }
 
   get totalCompleted(): number {
-    return this.meetings.filter((meeting) => meeting.status === 'completed').length;
+    return this.totalCompletedCount;
   }
 
   get totalCancelled(): number {
-    return this.meetings.filter((meeting) => meeting.status === 'cancelled').length;
+    return this.totalCancelledCount;
   }
 
   getStatusText(status: MeetingStatus): string {
@@ -187,6 +221,36 @@ export class MeetingHistoryComponent implements OnInit, OnDestroy {
         return 'bg-blue-100 text-blue-800';
       default:
         return 'bg-green-100 text-green-800';
+    }
+  }
+
+  /**
+   * Kiểm tra xem cuộc họp có sắp chuyển sang lịch sử không (trong vòng 24h sau khi kết thúc)
+   */
+  isMeetingPendingHistory(meeting: Meeting): boolean {
+    return isMeetingPendingHistory(meeting);
+  }
+
+  /**
+   * Lấy thông báo countdown cho cuộc họp sắp chuyển lịch sử
+   */
+  getHistoryCountdownMessage(meeting: Meeting): string {
+    const now = new Date();
+    const end = new Date(meeting.endTime);
+    const historyThreshold = new Date(end.getTime() + 24 * 60 * 60 * 1000);
+
+    if (now >= historyThreshold) {
+      return 'Đã chuyển sang lịch sử';
+    }
+
+    const diffMs = historyThreshold.getTime() - now.getTime();
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (hours > 0) {
+      return `Sẽ chuyển sang lịch sử sau ${hours} giờ ${minutes} phút`;
+    } else {
+      return `Sẽ chuyển sang lịch sử sau ${minutes} phút`;
     }
   }
 
@@ -247,156 +311,212 @@ export class MeetingHistoryComponent implements OnInit, OnDestroy {
     const contentWidth = pageWidth - 2 * margin;
     let y = margin;
 
-    // Title
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(16);
-    doc.text('BIEN BAN CUOC HOP', pageWidth / 2, y + 10, { align: 'center' });
-    y += 20;
+    // Helper function to add centered text
+    const addCenteredText = (text: string, fontSize: number, fontWeight: 'bold' | 'normal', yPos: number) => {
+      doc.setFont('helvetica', fontWeight);
+      doc.setFontSize(fontSize);
+      doc.text(text, pageWidth / 2, yPos, { align: 'center' });
+    };
 
-    // Meeting title
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(14);
-    doc.text(minutes.title, pageWidth / 2, y, { align: 'center' });
+    // Title - CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+    addCenteredText('CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM', 12, 'bold', y + 5);
+    y += 7;
+    addCenteredText('Độc lập - Tự do - Hạnh phúc', 12, 'normal', y + 5);
     y += 15;
 
-    // Status
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(11);
-    const statusLabel = 'Trang thai: ';
-    const statusValue = minutes.status === 'DRAFT' ? 'Nhap' : minutes.status === 'FINALIZED' ? 'Da hoan thanh' : 'Da ky';
-    doc.text(statusLabel + statusValue, margin, y);
+    // Title - BIÊN BẢN CUỘC HỌP
+    addCenteredText('BIÊN BẢN CUỘC HỌP', 16, 'bold', y + 5);
     y += 12;
 
+    // Meeting title
+    addCenteredText(minutes.title || '', 14, 'bold', y + 5);
+    y += 15;
+
     // Time
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('1. Thời gian:', margin, y);
+    y += 7;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(11);
-    const timeLabel = 'Thoi gian: ';
     const timeValue = `${this.formatDateTime(minutes.minutesCreatedAt)} - ${this.formatDateTime(minutes.minutesClosedAt)}`;
-    doc.text(timeLabel + timeValue, margin, y);
-    y += 12;
+    doc.text(timeValue, margin + 5, y);
+    y += 10;
 
     // Location
     if (minutes.location) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text('2. Địa điểm:', margin, y);
+      y += 7;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(11);
-      const locationLabel = 'Dia diem: ';
-      doc.text(locationLabel + minutes.location, margin, y);
-      y += 12;
+      const locationLines = doc.splitTextToSize(minutes.location, contentWidth - 5);
+      doc.text(locationLines, margin + 5, y);
+      y += locationLines.length * 6 + 4;
+    } else {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text('2. Địa điểm:', margin, y);
+      y += 7;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text('Không có', margin + 5, y);
+      y += 10;
     }
 
     // Purpose
     if (minutes.purpose) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text('3. Mục đích:', margin, y);
+      y += 7;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(11);
-      const purposeLabel = 'Muc dich: ';
-      doc.text(purposeLabel + minutes.purpose, margin, y);
-      y += 12;
+      const purposeLines = doc.splitTextToSize(minutes.purpose, contentWidth - 5);
+      doc.text(purposeLines, margin + 5, y);
+      y += purposeLines.length * 6 + 4;
     }
 
-    y += 8;
-
     // Attendees
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('4. Thành phần tham dự:', margin, y);
+    y += 7;
     if (minutes.attendees) {
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(13);
-      doc.text('THANH PHAN THAM DU', margin, y);
-      y += 8;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(11);
-      const attendeeLines = doc.splitTextToSize(minutes.attendees, contentWidth);
-      doc.text(attendeeLines, margin, y);
-      y += attendeeLines.length * 6 + 6;
+      const attendeeLines = doc.splitTextToSize(minutes.attendees, contentWidth - 5);
+      doc.text(attendeeLines, margin + 5, y);
+      y += attendeeLines.length * 6 + 4;
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text('Không có', margin + 5, y);
+      y += 10;
     }
 
     // Absentees
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('5. Vắng mặt:', margin, y);
+    y += 7;
     if (minutes.absentees) {
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(13);
-      doc.text('VANG MAT', margin, y);
-      y += 8;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(11);
-      const absenteeLines = doc.splitTextToSize(minutes.absentees, contentWidth);
-      doc.text(absenteeLines, margin, y);
-      y += absenteeLines.length * 6 + 6;
+      const absenteeLines = doc.splitTextToSize(minutes.absentees, contentWidth - 5);
+      doc.text(absenteeLines, margin + 5, y);
+      y += absenteeLines.length * 6 + 4;
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text('Không có', margin + 5, y);
+      y += 10;
     }
 
     // Content
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('6. Nội dung cuộc họp:', margin, y);
+    y += 7;
     if (minutes.content) {
       if (y > 240) { doc.addPage(); y = margin; }
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(13);
-      doc.text('NOI DUNG CUOC HOP', margin, y);
-      y += 8;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(11);
-      const contentLines = doc.splitTextToSize(minutes.content, contentWidth);
-      doc.text(contentLines, margin, y);
-      y += contentLines.length * 6 + 6;
+      const contentLines = doc.splitTextToSize(minutes.content, contentWidth - 5);
+      doc.text(contentLines, margin + 5, y);
+      y += contentLines.length * 6 + 4;
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text('Không có', margin + 5, y);
+      y += 10;
     }
 
     // Decisions
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('7. Quyết định, chỉ thị:', margin, y);
+    y += 7;
     if (minutes.decisions) {
       if (y > 240) { doc.addPage(); y = margin; }
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(13);
-      doc.text('QUYET DINH, CHI THI', margin, y);
-      y += 8;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(11);
-      const decisionsLines = doc.splitTextToSize(minutes.decisions, contentWidth);
-      doc.text(decisionsLines, margin, y);
-      y += decisionsLines.length * 6 + 6;
+      const decisionsLines = doc.splitTextToSize(minutes.decisions, contentWidth - 5);
+      doc.text(decisionsLines, margin + 5, y);
+      y += decisionsLines.length * 6 + 4;
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text('Không có', margin + 5, y);
+      y += 10;
     }
 
     // Contributions
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('8. Ý kiến đóng góp:', margin, y);
+    y += 7;
     if (minutes.contributions) {
       if (y > 240) { doc.addPage(); y = margin; }
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(13);
-      doc.text('Y KIEN DONG GOP', margin, y);
-      y += 8;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(11);
-      const contributionsLines = doc.splitTextToSize(minutes.contributions, contentWidth);
-      doc.text(contributionsLines, margin, y);
-      y += contributionsLines.length * 6 + 6;
+      const contributionsLines = doc.splitTextToSize(minutes.contributions, contentWidth - 5);
+      doc.text(contributionsLines, margin + 5, y);
+      y += contributionsLines.length * 6 + 4;
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text('Không có', margin + 5, y);
+      y += 10;
     }
 
     // Voting
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('9. Biểu quyết:', margin, y);
+    y += 7;
     if (minutes.voting) {
       if (y > 240) { doc.addPage(); y = margin; }
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(13);
-      doc.text('BIEU QUET', margin, y);
-      y += 8;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(11);
-      const votingLines = doc.splitTextToSize(minutes.voting, contentWidth);
-      doc.text(votingLines, margin, y);
-      y += votingLines.length * 6 + 6;
+      const votingLines = doc.splitTextToSize(minutes.voting, contentWidth - 5);
+      doc.text(votingLines, margin + 5, y);
+      y += votingLines.length * 6 + 4;
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text('Không có', margin + 5, y);
+      y += 10;
     }
 
     // Conclusions
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('10. Kết luận:', margin, y);
+    y += 7;
     if (minutes.conclusions) {
       if (y > 240) { doc.addPage(); y = margin; }
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(13);
-      doc.text('KET LUAN', margin, y);
-      y += 8;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(11);
-      const conclusionsLines = doc.splitTextToSize(minutes.conclusions, contentWidth);
-      doc.text(conclusionsLines, margin, y);
-      y += conclusionsLines.length * 6 + 6;
+      const conclusionsLines = doc.splitTextToSize(minutes.conclusions, contentWidth - 5);
+      doc.text(conclusionsLines, margin + 5, y);
+      y += conclusionsLines.length * 6 + 4;
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text('Không có', margin + 5, y);
+      y += 10;
     }
 
     // Signatures
     if (minutes.signatures && minutes.signatures.length > 0) {
-      if (y > 250) { doc.addPage(); y = margin; }
+      if (y > 200) { doc.addPage(); y = margin; }
+      y += 10;
+      
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(13);
-      doc.text('CHU KY', margin, y);
+      doc.setFontSize(12);
+      doc.text('CHỮ KÝ', pageWidth / 2, y, { align: 'center' });
       y += 10;
 
       const sigPerRow = 2;
@@ -406,16 +526,16 @@ export class MeetingHistoryComponent implements OnInit, OnDestroy {
         const row = Math.floor(index / sigPerRow);
         const col = index % sigPerRow;
         const sigX = margin + col * (sigWidth + 10);
-        const sigY = y + row * 40;
+        const sigY = y + row * 45;
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(11);
         doc.text(sig.signerName || sig.signerEmail, sigX, sigY);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(10);
-        doc.text(sig.agreed ? 'Da ky (Dong y)' : 'Da ky (Khong dong y)', sigX, sigY + 6);
+        doc.text(sig.agreed ? 'Đã ký (Đồng ý)' : 'Đã ký (Không đồng ý)', sigX, sigY + 6);
         if (sig.signedAt) {
-          doc.text(`Luc: ${new Date(sig.signedAt).toLocaleString('vi-VN')}`, sigX, sigY + 12);
+          doc.text(`Lúc: ${new Date(sig.signedAt).toLocaleString('vi-VN')}`, sigX, sigY + 12);
         }
         if (sig.notes) {
           const notesLines = doc.splitTextToSize(sig.notes, sigWidth);
@@ -426,6 +546,6 @@ export class MeetingHistoryComponent implements OnInit, OnDestroy {
 
     // Save PDF
     doc.save(`BienBan_${minutes.title}.pdf`);
-    this.toastService.success('Da tai bien ban PDF thanh cong!');
+    this.toastService.success('Đã tải biên bản PDF thành công!');
   }
 }

@@ -19,6 +19,7 @@ export interface Task {
   meetingId: number;
   meetingTitle?: string;
   subtasks: Subtask[];
+  dueDate?: string | null;
   createdAt?: string;
   updatedAt?: string;
   completedAt?: string | null;
@@ -28,6 +29,7 @@ export interface CreateTaskRequest {
   title: string;
   description?: string;
   assigneeEmail: string;
+  dueDate?: string;
   subtaskTitles?: string[];
 }
 
@@ -35,6 +37,7 @@ export interface UpdateTaskRequest {
   title: string;
   description?: string;
   assigneeEmail: string;
+  dueDate?: string;
   subtaskTitles?: string[];
 }
 

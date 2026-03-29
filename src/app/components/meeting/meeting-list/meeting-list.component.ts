@@ -2,7 +2,7 @@ import { ChangeDetectorRef, Component, inject, OnDestroy, OnInit, PLATFORM_ID } 
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { concatMap, finalize, Subscription, timeout, TimeoutError } from 'rxjs';
 import { FormsModule } from '@angular/forms';
-import { AgendaItem, Meeting, MeetingAttachment, ParticipantInvitationStatus, UpdateMeetingRequest } from '../../../models/meeting.models';
+import { AgendaItem, Meeting, MeetingAttachment, ParticipantInvitationStatus, UpdateMeetingRequest, isMeetingOngoing, isMeetingEnded, isMeetingPendingHistory, getHoursUntilHistory } from '../../../models/meeting.models';
 import { MeetingService } from '../../../services/meeting.service';
 import { AuthService } from '../../../services/auth.service';
 import { ToastService } from '../../../services/toast.service';
@@ -10,12 +10,14 @@ import { MinutesEditorComponent } from '../../minutes/minutes-editor/minutes-edi
 import { TaskListComponent } from '../../task/task-list/task-list.component';
 import { MeetingMinutesService } from '../../../services/minutes.service';
 import { MeetingMinutes } from '../../../models/minutes.models';
+import { PaginationComponent } from '../../pagination/pagination.component';
+import { ModalOverlayService } from '../../../services/modal-overlay.service';
 import jsPDF from 'jspdf';
 
 @Component({
   selector: 'app-meeting-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, MinutesEditorComponent, TaskListComponent],
+  imports: [CommonModule, FormsModule, MinutesEditorComponent, TaskListComponent, PaginationComponent],
   templateUrl: './meeting-list.component.html',
   styleUrls: ['./meeting-list.component.css']
 })
@@ -92,6 +94,7 @@ export class MeetingListComponent implements OnInit, OnDestroy {
     private cdr: ChangeDetectorRef,
     private toastService: ToastService,
     private minutesService: MeetingMinutesService,
+    private modalOverlayService: ModalOverlayService,
   ) {}
 
   ngOnInit(): void {
@@ -115,7 +118,7 @@ export class MeetingListComponent implements OnInit, OnDestroy {
     this.isLoading = true;
     this.errorMessage = '';
 
-    const loadSub = this.meetingService.getMeetingsPaginated(this.currentPage, this.pageSize, this.sortOrder)
+    const loadSub = this.meetingService.getActiveMeetingsPaginated(this.currentPage, this.pageSize, this.sortOrder)
       .pipe(timeout(10000))
       .subscribe({
         next: (response) => {
@@ -348,6 +351,50 @@ export class MeetingListComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * Kiểm tra xem cuộc họp có đang diễn ra không
+   */
+  isMeetingOngoing(meeting: Meeting): boolean {
+    return isMeetingOngoing(meeting);
+  }
+
+  /**
+   * Kiểm tra xem cuộc họp đã kết thúc chưa
+   */
+  isMeetingEnded(meeting: Meeting): boolean {
+    return isMeetingEnded(meeting);
+  }
+
+  /**
+   * Kiểm tra xem cuộc họp có sắp chuyển sang lịch sử không (trong vòng 24h sau khi kết thúc)
+   */
+  isMeetingPendingHistory(meeting: Meeting): boolean {
+    return isMeetingPendingHistory(meeting);
+  }
+
+  /**
+   * Lấy thông báo countdown cho cuộc họp sắp chuyển lịch sử
+   */
+  getHistoryCountdownMessage(meeting: Meeting): string {
+    const now = new Date();
+    const end = new Date(meeting.endTime);
+    const historyThreshold = new Date(end.getTime() + 24 * 60 * 60 * 1000);
+
+    if (now >= historyThreshold) {
+      return 'Đã chuyển sang lịch sử';
+    }
+
+    const diffMs = historyThreshold.getTime() - now.getTime();
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (hours > 0) {
+      return `Sẽ chuyển sang lịch sử sau ${hours} giờ ${minutes} phút`;
+    } else {
+      return `Sẽ chuyển sang lịch sử sau ${minutes} phút`;
+    }
+  }
+
   getParticipantStatusText(status: ParticipantInvitationStatus | undefined): string {
     switch (status) {
       case 'accepted':
@@ -377,20 +424,8 @@ export class MeetingListComponent implements OnInit, OnDestroy {
   }
 
   get sortedMeetings(): Meeting[] {
-    const meetings = [...this.activeMeetings];
-    if (this.sortOrder === 'newest') {
-      return meetings.sort((a, b) => {
-        const dateA = new Date(a.startTime).getTime();
-        const dateB = new Date(b.startTime).getTime();
-        return dateB - dateA;
-      });
-    } else {
-      return meetings.sort((a, b) => {
-        const dateA = new Date(a.startTime).getTime();
-        const dateB = new Date(b.startTime).getTime();
-        return dateA - dateB;
-      });
-    }
+    // Meetings are already sorted by API, just return active meetings
+    return this.activeMeetings;
   }
 
   onSortChange(): void {
@@ -415,6 +450,7 @@ export class MeetingListComponent implements OnInit, OnDestroy {
   openDetailModal(meeting: Meeting): void {
     this.selectedMeeting = meeting;
     this.showDetailModal = true;
+    this.modalOverlayService.setModalOpen(true);
   }
 
   closeDetailModal(): void {
@@ -423,6 +459,7 @@ export class MeetingListComponent implements OnInit, OnDestroy {
     this.isRemovingParticipant = false;
     this.removingParticipantEmail = '';
     this.participantActionError = '';
+    this.modalOverlayService.setModalOpen(false);
   }
 
   closeMinutesEditor(): void {
@@ -490,167 +527,219 @@ export class MeetingListComponent implements OnInit, OnDestroy {
     const contentWidth = pageWidth - 2 * margin;
     let y = margin;
 
-    // Helper function to add text with proper Vietnamese support
-    const addText = (text: string, x: number, yPosition: number, options?: { align?: 'left' | 'center' | 'right'; maxWidth?: number }) => {
-      // Remove Vietnamese diacritics for compatibility
-      const normalizedText = text
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/đ/g, 'd')
-        .replace(/Đ/g, 'D');
-      return normalizedText;
+    // Helper function to add centered text
+    const addCenteredText = (text: string, fontSize: number, fontWeight: 'bold' | 'normal', yPos: number) => {
+      doc.setFont('helvetica', fontWeight);
+      doc.setFontSize(fontSize);
+      doc.text(text, pageWidth / 2, yPos, { align: 'center' });
     };
 
-    // Title
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(16);
-    doc.text('BIEN BAN CUOC HOP', pageWidth / 2, y + 10, { align: 'center' });
-    y += 20;
+    // Helper function to add left-aligned text
+    const addLeftText = (text: string, fontSize: number, fontWeight: 'bold' | 'normal', yPos: number) => {
+      doc.setFont('helvetica', fontWeight);
+      doc.setFontSize(fontSize);
+      doc.text(text, margin, yPos);
+    };
 
-    // Meeting title
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(14);
-    doc.text(minutes.title, pageWidth / 2, y, { align: 'center' });
+    // Title - CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+    addCenteredText('CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM', 12, 'bold', y + 5);
+    y += 7;
+    addCenteredText('Độc lập - Tự do - Hạnh phúc', 12, 'normal', y + 5);
     y += 15;
 
-    // Status
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(11);
-    const statusLabel = 'Trang thai: ';
-    const statusValue = minutes.status === 'DRAFT' ? 'Nhap' : minutes.status === 'FINALIZED' ? 'Da hoan thanh' : 'Da ky';
-    doc.text(statusLabel + statusValue, margin, y);
+    // Title - BIÊN BẢN CUỘC HỌP
+    addCenteredText('BIÊN BẢN CUỘC HỌP', 16, 'bold', y + 5);
     y += 12;
 
+    // Meeting title
+    addCenteredText(minutes.title || '', 14, 'bold', y + 5);
+    y += 15;
+
     // Time
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('1. Thời gian:', margin, y);
+    y += 7;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(11);
-    const timeLabel = 'Thoi gian: ';
     const timeValue = `${this.formatDateTime(minutes.minutesCreatedAt)} - ${this.formatDateTime(minutes.minutesClosedAt)}`;
-    doc.text(timeLabel + timeValue, margin, y);
-    y += 12;
+    doc.text(timeValue, margin + 5, y);
+    y += 10;
 
     // Location
     if (minutes.location) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text('2. Địa điểm:', margin, y);
+      y += 7;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(11);
-      const locationLabel = 'Dia diem: ';
-      doc.text(locationLabel + minutes.location, margin, y);
-      y += 12;
+      const locationLines = doc.splitTextToSize(minutes.location, contentWidth - 5);
+      doc.text(locationLines, margin + 5, y);
+      y += locationLines.length * 6 + 4;
+    } else {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text('2. Địa điểm:', margin, y);
+      y += 7;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text('Không có', margin + 5, y);
+      y += 10;
     }
 
     // Purpose
     if (minutes.purpose) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text('3. Mục đích:', margin, y);
+      y += 7;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(11);
-      const purposeLabel = 'Muc dich: ';
-      doc.text(purposeLabel + minutes.purpose, margin, y);
-      y += 12;
+      const purposeLines = doc.splitTextToSize(minutes.purpose, contentWidth - 5);
+      doc.text(purposeLines, margin + 5, y);
+      y += purposeLines.length * 6 + 4;
     }
 
-    y += 8;
-
     // Attendees
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('4. Thành phần tham dự:', margin, y);
+    y += 7;
     if (minutes.attendees) {
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(13);
-      doc.text('THANH PHAN THAM DU', margin, y);
-      y += 8;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(11);
-      const attendeeLines = doc.splitTextToSize(minutes.attendees, contentWidth);
-      doc.text(attendeeLines, margin, y);
-      y += attendeeLines.length * 6 + 6;
+      const attendeeLines = doc.splitTextToSize(minutes.attendees, contentWidth - 5);
+      doc.text(attendeeLines, margin + 5, y);
+      y += attendeeLines.length * 6 + 4;
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text('Không có', margin + 5, y);
+      y += 10;
     }
 
     // Absentees
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('5. Vắng mặt:', margin, y);
+    y += 7;
     if (minutes.absentees) {
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(13);
-      doc.text('VANG MAT', margin, y);
-      y += 8;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(11);
-      const absenteeLines = doc.splitTextToSize(minutes.absentees, contentWidth);
-      doc.text(absenteeLines, margin, y);
-      y += absenteeLines.length * 6 + 6;
+      const absenteeLines = doc.splitTextToSize(minutes.absentees, contentWidth - 5);
+      doc.text(absenteeLines, margin + 5, y);
+      y += absenteeLines.length * 6 + 4;
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text('Không có', margin + 5, y);
+      y += 10;
     }
 
     // Content
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('6. Nội dung cuộc họp:', margin, y);
+    y += 7;
     if (minutes.content) {
       if (y > 240) { doc.addPage(); y = margin; }
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(13);
-      doc.text('NOI DUNG CUOC HOP', margin, y);
-      y += 8;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(11);
-      const contentLines = doc.splitTextToSize(minutes.content, contentWidth);
-      doc.text(contentLines, margin, y);
-      y += contentLines.length * 6 + 6;
+      const contentLines = doc.splitTextToSize(minutes.content, contentWidth - 5);
+      doc.text(contentLines, margin + 5, y);
+      y += contentLines.length * 6 + 4;
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text('Không có', margin + 5, y);
+      y += 10;
     }
 
     // Decisions
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('7. Quyết định, chỉ thị:', margin, y);
+    y += 7;
     if (minutes.decisions) {
       if (y > 240) { doc.addPage(); y = margin; }
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(13);
-      doc.text('QUYET DINH, CHI THI', margin, y);
-      y += 8;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(11);
-      const decisionsLines = doc.splitTextToSize(minutes.decisions, contentWidth);
-      doc.text(decisionsLines, margin, y);
-      y += decisionsLines.length * 6 + 6;
+      const decisionsLines = doc.splitTextToSize(minutes.decisions, contentWidth - 5);
+      doc.text(decisionsLines, margin + 5, y);
+      y += decisionsLines.length * 6 + 4;
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text('Không có', margin + 5, y);
+      y += 10;
     }
 
     // Contributions
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('8. Ý kiến đóng góp:', margin, y);
+    y += 7;
     if (minutes.contributions) {
       if (y > 240) { doc.addPage(); y = margin; }
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(13);
-      doc.text('Y KIEN DONG GOP', margin, y);
-      y += 8;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(11);
-      const contributionsLines = doc.splitTextToSize(minutes.contributions, contentWidth);
-      doc.text(contributionsLines, margin, y);
-      y += contributionsLines.length * 6 + 6;
+      const contributionsLines = doc.splitTextToSize(minutes.contributions, contentWidth - 5);
+      doc.text(contributionsLines, margin + 5, y);
+      y += contributionsLines.length * 6 + 4;
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text('Không có', margin + 5, y);
+      y += 10;
     }
 
     // Voting
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('9. Biểu quyết:', margin, y);
+    y += 7;
     if (minutes.voting) {
       if (y > 240) { doc.addPage(); y = margin; }
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(13);
-      doc.text('BIEU QUET', margin, y);
-      y += 8;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(11);
-      const votingLines = doc.splitTextToSize(minutes.voting, contentWidth);
-      doc.text(votingLines, margin, y);
-      y += votingLines.length * 6 + 6;
+      const votingLines = doc.splitTextToSize(minutes.voting, contentWidth - 5);
+      doc.text(votingLines, margin + 5, y);
+      y += votingLines.length * 6 + 4;
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text('Không có', margin + 5, y);
+      y += 10;
     }
 
     // Conclusions
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('10. Kết luận:', margin, y);
+    y += 7;
     if (minutes.conclusions) {
       if (y > 240) { doc.addPage(); y = margin; }
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(13);
-      doc.text('KET LUAN', margin, y);
-      y += 8;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(11);
-      const conclusionsLines = doc.splitTextToSize(minutes.conclusions, contentWidth);
-      doc.text(conclusionsLines, margin, y);
-      y += conclusionsLines.length * 6 + 6;
+      const conclusionsLines = doc.splitTextToSize(minutes.conclusions, contentWidth - 5);
+      doc.text(conclusionsLines, margin + 5, y);
+      y += conclusionsLines.length * 6 + 4;
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text('Không có', margin + 5, y);
+      y += 10;
     }
 
     // Signatures
     if (minutes.signatures && minutes.signatures.length > 0) {
-      if (y > 250) { doc.addPage(); y = margin; }
+      if (y > 200) { doc.addPage(); y = margin; }
+      y += 10;
+      
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(13);
-      doc.text('CHU KY', margin, y);
+      doc.setFontSize(12);
+      doc.text('CHỮ KÝ', pageWidth / 2, y, { align: 'center' });
       y += 10;
 
       const sigPerRow = 2;
@@ -660,16 +749,16 @@ export class MeetingListComponent implements OnInit, OnDestroy {
         const row = Math.floor(index / sigPerRow);
         const col = index % sigPerRow;
         const sigX = margin + col * (sigWidth + 10);
-        const sigY = y + row * 40;
+        const sigY = y + row * 45;
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(11);
         doc.text(sig.signerName || sig.signerEmail, sigX, sigY);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(10);
-        doc.text(sig.agreed ? 'Da ky (Dong y)' : 'Da ky (Khong dong y)', sigX, sigY + 6);
+        doc.text(sig.agreed ? 'Đã ký (Đồng ý)' : 'Đã ký (Không đồng ý)', sigX, sigY + 6);
         if (sig.signedAt) {
-          doc.text(`Luc: ${new Date(sig.signedAt).toLocaleString('vi-VN')}`, sigX, sigY + 12);
+          doc.text(`Lúc: ${new Date(sig.signedAt).toLocaleString('vi-VN')}`, sigX, sigY + 12);
         }
         if (sig.notes) {
           const notesLines = doc.splitTextToSize(sig.notes, sigWidth);
@@ -680,7 +769,7 @@ export class MeetingListComponent implements OnInit, OnDestroy {
 
     // Save PDF
     doc.save(`BienBan_${minutes.title}.pdf`);
-    this.toastService.success('Da tai bien ban PDF thanh cong!');
+    this.toastService.success('Đã tải biên bản PDF thành công!');
   }
 
   closeConfirmModal(): void {
@@ -726,43 +815,28 @@ export class MeetingListComponent implements OnInit, OnDestroy {
   }
 
   // Pagination methods
+  onPageChange(page: number): void {
+    // Pagination component uses 1-based, convert to 0-based for API
+    const zeroBasedPage = page - 1;
+    if (zeroBasedPage < 0 || zeroBasedPage >= this.totalPages || zeroBasedPage === this.currentPage) {
+      return;
+    }
+    this.currentPage = zeroBasedPage;
+    this.loadMeetingsPage();
+  }
+
+  onPageSizeChange(pageSize: number): void {
+    this.pageSize = pageSize;
+    this.currentPage = 0;
+    this.loadMeetingsPage();
+  }
+
   goToPage(page: number): void {
     if (page < 0 || page >= this.totalPages || page === this.currentPage) {
       return;
     }
     this.currentPage = page;
     this.loadMeetingsPage();
-  }
-
-  nextPage(): void {
-    if (!this.isLastPage) {
-      this.goToPage(this.currentPage + 1);
-    }
-  }
-
-  previousPage(): void {
-    if (!this.isFirstPage) {
-      this.goToPage(this.currentPage - 1);
-    }
-  }
-
-  getPageNumbers(): number[] {
-    const pages: number[] = [];
-    const maxVisiblePages = 5;
-    
-    let startPage = Math.max(0, this.currentPage - Math.floor(maxVisiblePages / 2));
-    let endPage = Math.min(this.totalPages - 1, startPage + maxVisiblePages - 1);
-    
-    // Adjust if we're near the end
-    if (endPage - startPage < maxVisiblePages - 1) {
-      startPage = Math.max(0, endPage - maxVisiblePages + 1);
-    }
-    
-    for (let i = startPage; i <= endPage; i++) {
-      pages.push(i);
-    }
-    
-    return pages;
   }
 
   onModalBackdropClick(event: MouseEvent): void {

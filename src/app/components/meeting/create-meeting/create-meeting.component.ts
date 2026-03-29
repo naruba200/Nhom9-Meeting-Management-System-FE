@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy, OnInit, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormsModule, FormBuilder, FormGroup, Validators, FormArray } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -26,6 +26,8 @@ export class CreateMeetingComponent implements OnInit, OnDestroy {
   selectedAttachmentFiles: File[] = [];
   agendaDragIndex: number | null = null;
   private readonly subscriptions: Subscription[] = [];
+
+  @Output() meetingCreated = new EventEmitter<void>();
 
   constructor(
     private fb: FormBuilder,
@@ -301,6 +303,10 @@ export class CreateMeetingComponent implements OnInit, OnDestroy {
           : baseMessage;
         this.toastService.success(this.successMessage);
         this.resetForm();
+        
+        // Emit event to refresh meeting list
+        this.meetingCreated.emit();
+        
         this.cdr.detectChanges();
 
         setTimeout(() => {

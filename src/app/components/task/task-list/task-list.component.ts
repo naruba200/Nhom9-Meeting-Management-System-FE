@@ -36,11 +36,14 @@ export class TaskListComponent implements OnInit {
   readonly editingTaskId = signal<number | null>(null);
   readonly selectedDeleteTaskId = signal<number | null>(null);
   readonly currentUserEmail = signal('');
+  readonly selectedTaskForDetail = signal<Task | null>(null);
+  readonly showTaskDetail = signal(false);
 
   readonly taskForm: FormGroup = this.fb.group({
     title: ['', [Validators.required, Validators.minLength(1), Validators.maxLength(255)]],
     description: ['', [Validators.maxLength(2000)]],
     assigneeEmail: ['', [Validators.required]],
+    dueDate: [''],
     subtaskTitles: [[] as string[]]
   });
 
@@ -100,6 +103,7 @@ export class TaskListComponent implements OnInit {
       title: task.title,
       description: task.description,
       assigneeEmail: task.assigneeEmail,
+      dueDate: task.dueDate ? task.dueDate.split('T')[0] : '',
       subtaskTitles: task.subtasks.map(s => s.title)
     });
     this.showModal.set(true);
@@ -119,7 +123,13 @@ export class TaskListComponent implements OnInit {
     const isEditMode = this.editingTaskId();
 
     if (isEditMode) {
-      const updateRequest: UpdateTaskRequest = formValue;
+      const updateRequest: UpdateTaskRequest = {
+        title: formValue.title,
+        description: formValue.description,
+        assigneeEmail: formValue.assigneeEmail,
+        dueDate: formValue.dueDate || null,
+        subtaskTitles: formValue.subtaskTitles
+      };
       this.taskService.updateTask(isEditMode, updateRequest).subscribe({
         next: () => {
           this.toastService.success('Task updated successfully');
@@ -137,7 +147,13 @@ export class TaskListComponent implements OnInit {
         this.toastService.error('Cannot create task without a meeting');
         return;
       }
-      const createRequest: CreateTaskRequest = formValue;
+      const createRequest: CreateTaskRequest = {
+        title: formValue.title,
+        description: formValue.description,
+        assigneeEmail: formValue.assigneeEmail,
+        dueDate: formValue.dueDate || null,
+        subtaskTitles: formValue.subtaskTitles
+      };
       this.taskService.createTask(meetingId, createRequest).subscribe({
         next: () => {
           this.toastService.success('Task created successfully');
@@ -281,5 +297,33 @@ export class TaskListComponent implements OnInit {
       default:
         return status;
     }
+  }
+
+  formatDate(dateString: string): string {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  }
+
+  isOverdue(dateString: string): boolean {
+    if (!dateString) return false;
+    const dueDate = new Date(dateString);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return dueDate < today;
+  }
+
+  openTaskDetail(task: Task) {
+    this.selectedTaskForDetail.set(task);
+    this.showTaskDetail.set(true);
+  }
+
+  closeTaskDetail() {
+    this.showTaskDetail.set(false);
+    this.selectedTaskForDetail.set(null);
   }
 }

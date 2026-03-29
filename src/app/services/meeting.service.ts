@@ -37,7 +37,10 @@ export class MeetingService {
   }
 
   loadMeetings(): Observable<Meeting[]> {
-    return this.http.get<PaginatedMeetingResponse>(this.apiUrl).pipe(
+    // Load all meetings by fetching with a large page size
+    return this.http.get<PaginatedMeetingResponse>(this.apiUrl, {
+      params: { page: 0, size: 1000 }
+    }).pipe(
       map((response) => response.content.map((item) => this.mapFromApi(item as any))),
       tap((meetings) => this.meetingsSubject.next(meetings))
     );
@@ -51,6 +54,50 @@ export class MeetingService {
         ...response,
         content: response.content.map((item) => this.mapFromApi(item as any))
       }))
+    );
+  }
+
+  getActiveMeetingsPaginated(page: number, size: number, sortOrder: string): Observable<PaginatedMeetingResponse> {
+    return this.http.get<PaginatedMeetingResponse>(this.apiUrl, {
+      params: { page, size, sortOrder }
+    }).pipe(
+      map((response) => {
+        // Filter active meetings (SCHEDULED, IN_PROGRESS) before mapping
+        const filteredContent = (response as any).content
+          .filter((item: any) => item.status === 'SCHEDULED' || item.status === 'IN_PROGRESS')
+          .map((item: any) => this.mapFromApi(item));
+
+        return {
+          ...response,
+          content: filteredContent,
+          totalElements: filteredContent.length,
+          totalPages: Math.ceil(filteredContent.length / size),
+          numberOfElements: filteredContent.length,
+          last: page >= Math.ceil(filteredContent.length / size) - 1
+        };
+      })
+    );
+  }
+
+  getHistoryMeetingsPaginated(page: number, size: number, sortOrder: string): Observable<PaginatedMeetingResponse> {
+    return this.http.get<PaginatedMeetingResponse>(this.apiUrl, {
+      params: { page, size, sortOrder }
+    }).pipe(
+      map((response) => {
+        // Filter history meetings (COMPLETED, CANCELLED) before mapping
+        const filteredContent = (response as any).content
+          .filter((item: any) => item.status === 'COMPLETED' || item.status === 'CANCELLED')
+          .map((item: any) => this.mapFromApi(item));
+
+        return {
+          ...response,
+          content: filteredContent,
+          totalElements: filteredContent.length,
+          totalPages: Math.ceil(filteredContent.length / size),
+          numberOfElements: filteredContent.length,
+          last: page >= Math.ceil(filteredContent.length / size) - 1
+        };
+      })
     );
   }
 
