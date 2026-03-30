@@ -1,0 +1,234 @@
+<div class="minutes-editor" *ngIf="!isLoading()">
+  <div class="minutes-header">
+    <div class="header-content">
+      <h2>Biên bản cuộc họp</h2>
+      <span class="status-badge" 
+            [style.background-color]="getStatusColor(minutes()?.status || 'DRAFT')"
+            *ngIf="minutes()">
+        {{ getStatusText(minutes()!.status) }}
+      </span>
+    </div>
+  </div>
+
+  <form [formGroup]="minutesForm" (ngSubmit)="submitMinutes()" class="minutes-form">
+    <!-- Header Information -->
+    <div class="form-section">
+      <h3 class="section-title">📋 Thông tin chung</h3>
+      
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="title">Tiêu đề biên bản <span class="required">*</span></label>
+          <input type="text" 
+                 id="title" 
+                 formControlName="title" 
+                 placeholder="VD: Biên bản họp kỳ 1 năm 2024"
+                 class="form-control">
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="minutesCreatedAt">Thời gian bắt đầu <span class="required">*</span></label>
+          <input type="datetime-local" 
+                 id="minutesCreatedAt" 
+                 formControlName="minutesCreatedAt"
+                 class="form-control">
+        </div>
+
+        <div class="form-group">
+          <label for="minutesClosedAt">Thời gian kết thúc <span class="required">*</span></label>
+          <input type="datetime-local" 
+                 id="minutesClosedAt" 
+                 formControlName="minutesClosedAt"
+                 class="form-control">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="purpose">Mục đích cuộc họp</label>
+        <textarea id="purpose" 
+                  formControlName="purpose" 
+                  placeholder="Mô tả mục đích của cuộc họp"
+                  rows="3"
+                  class="form-control"></textarea>
+      </div>
+    </div>
+
+    <!-- Participants -->
+    <div class="form-section">
+      <h3 class="section-title">👥 Thành phần</h3>
+
+      <div class="form-group">
+        <label for="attendees">Thành viên tham dự</label>
+        <textarea id="attendees" 
+                  formControlName="attendees" 
+                  placeholder="Liệt kê tên các thành viên tham dự"
+                  rows="3"
+                  class="form-control"></textarea>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="form-section">
+      <h3 class="section-title">📝 Nội dung</h3>
+
+      <div class="form-group">
+        <label for="content">Diễn biến nội dung cuộc họp</label>
+        <textarea id="content" 
+                  formControlName="content" 
+                  placeholder="Ghi lại chi tiết diễn biến cuộc họp..."
+                  rows="5"
+                  class="form-control"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="decisions">Các quyết định, chỉ thị</label>
+        <textarea id="decisions" 
+                  formControlName="decisions" 
+                  placeholder="Liệt kê các quyết định được đưa ra trong cuộc họp"
+                  rows="4"
+                  class="form-control"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="contributions">Ý kiến đóng góp của các thành viên</label>
+        <textarea id="contributions" 
+                  formControlName="contributions" 
+                  placeholder="Ghi lại ý kiến và đóng góp của các thành viên"
+                  rows="4"
+                  class="form-control"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="voting">Lượt biểu quyết (nếu có)</label>
+        <textarea id="voting" 
+                  formControlName="voting" 
+                  placeholder="Ghi lại kết quả biểu quyết"
+                  rows="3"
+                  class="form-control"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="conclusions">Kết luận và xác nhận</label>
+        <textarea id="conclusions" 
+                  formControlName="conclusions" 
+                  placeholder="Kết luận của cuộc họp và xác nhận các bên đã cùng nghe"
+                  rows="4"
+                  class="form-control"></textarea>
+      </div>
+    </div>
+
+    <!-- Tasks -->
+    <div class="form-section" *ngIf="tasks().length > 0">
+      <h3 class="section-title">✓ Công việc sắp tới</h3>
+
+      <div class="form-group">
+        <label>Chọn các công việc cần đưa vào biên bản</label>
+        <div class="tasks-list">
+          @for (task of tasks(); track task.id) {
+            <label class="checkbox-item">
+              <input type="checkbox" 
+                     [checked]="isTaskSelected(task.id)"
+                     (change)="onTaskSelectionChange(task.id, $any($event.target).checked)"
+                     class="checkbox-input">
+              <span class="checkbox-label">
+                {{ task.title }} (📧 {{ task.assigneeEmail }})
+              </span>
+            </label>
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- Form Actions -->
+    <div class="form-actions" *ngIf="!minutes() || minutes()!.status === 'DRAFT'">
+      <button type="button"
+              class="btn-finalize"
+              (click)="finalizeMinutes()"
+              *ngIf="minutes() && minutes()!.status === 'DRAFT'"
+              [disabled]="isSaving()">
+        Finalize
+      </button>
+      <button type="submit" 
+              class="btn-submit" 
+              [disabled]="minutesForm.invalid || isSaving()">
+        {{ isEditMode() ? 'Cập nhật biên bản' : 'Tạo biên bản' }}
+      </button>
+    </div>
+
+    <div class="form-actions" *ngIf="minutes() && minutes()!.status === 'FINALIZED' && canManage() && !hasCurrentUserSigned()">
+      <button type="button" class="btn-sign" (click)="openSignModal()" [disabled]="isSaving()">
+        ✓ Agree & Sign
+      </button>
+    </div>
+  </form>
+
+  <!-- Signatures Section -->
+  <div class="signatures-section" *ngIf="minutes()">
+    <h3 class="section-title">🖊️ Chữ ký xác nhận</h3>
+    <div class="signatures-list">
+      @for (signature of minutes()!.signatures; track signature.id) {
+        <div class="signature-card" [class.signed]="signature.agreed">
+          <div class="signature-header">
+            <span class="signer-name">{{ signature.signerName || signature.signerEmail }}</span>
+            <span class="signature-status" *ngIf="signature.signedAt">
+              ✓ {{ signature.signedAt | date: 'dd/MM/yyyy HH:mm' }}
+            </span>
+            <span class="signature-status unsigned" *ngIf="!signature.signedAt">
+              Chưa ký
+            </span>
+          </div>
+          <p class="signature-notes" *ngIf="signature.notes">{{ signature.notes }}</p>
+        </div>
+      }
+    </div>
+  </div>
+
+  <!-- Sign Modal -->
+  <div class="modal-overlay" *ngIf="showSignModal()" (click)="closeSignModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>Ký xác nhận biên bản</h2>
+        <button class="btn-close" (click)="closeSignModal()">×</button>
+      </div>
+
+      <form [formGroup]="signForm" (ngSubmit)="submitSignature()" class="modal-body">
+        <div class="form-group">
+          <label for="signerName">Họ tên</label>
+          <input type="text" 
+                 id="signerName" 
+                 formControlName="signerName"
+                 placeholder="Nhập họ tên của bạn"
+                 class="form-control">
+        </div>
+
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" 
+                   formControlName="agreed"
+                   class="checkbox-input">
+            <span>Tôi đã đọc và đồng ý với nội dung biên bản</span>
+          </label>
+        </div>
+
+        <div class="form-group">
+          <label for="notes">Ghi chú (tùy chọn)</label>
+          <textarea id="notes" 
+                    formControlName="notes"
+                    placeholder="Nhập ghi chú hoặc ý kiến của bạn"
+                    rows="3"
+                    class="form-control"></textarea>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" (click)="closeSignModal()">Hủy</button>
+          <button type="submit" class="btn-primary" [disabled]="signForm.invalid">Ký xác nhận</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="loading-spinner" *ngIf="isLoading()">
+  <p>Loading...</p>
+</div>

@@ -1,0 +1,1475 @@
+import { ChangeDetectorRef, Component, inject, OnDestroy, OnInit, PLATFORM_ID } from '@angular/core';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
+import { concatMap, finalize, Subscription, timeout, TimeoutError } from 'rxjs';
+import { FormsModule } from '@angular/forms';
+import { AgendaItem, Meeting, MeetingAttachment, ParticipantInvitationStatus, UpdateMeetingRequest, isMeetingOngoing, isMeetingEnded, isMeetingPendingHistory, getHoursUntilHistory } from '../../../models/meeting.models';
+import { MeetingService } from '../../../services/meeting.service';
+import { AuthService } from '../../../services/auth.service';
+import { ToastService } from '../../../services/toast.service';
+import { MinutesEditorComponent } from '../../minutes/minutes-editor/minutes-editor.component';
+import { TaskListComponent } from '../../task/task-list/task-list.component';
+import { MeetingMinutesService } from '../../../services/minutes.service';
+import { MeetingMinutes } from '../../../models/minutes.models';
+import { PaginationComponent } from '../../pagination/pagination.component';
+import { ModalOverlayService } from '../../../services/modal-overlay.service';
+import jsPDF from 'jspdf';
+
+@Component({
+  selector: 'app-meeting-list',
+  standalone: true,
+  imports: [CommonModule, FormsModule, MinutesEditorComponent, TaskListComponent, PaginationComponent],
+  templateUrl: './meeting-list.component.html',
+  styleUrls: ['./meeting-list.component.css']
+})
+export class MeetingListComponent implements OnInit, OnDestroy {
+  private readonly platformId = inject(PLATFORM_ID);
+  meetings: Meeting[] = [];
+  currentUserEmail: string = '';
+  selectedMeeting: Meeting | null = null;
+  showDetailModal: boolean = false;
+  showMinutesEditor: boolean = false;
+  viewMinutes: MeetingMinutes | null = null;
+  showConfirmModal = false;
+  confirmTitle = '';
+  confirmMessage = '';
+  confirmActionLabel = '';
+  confirmActionStyle: 'danger' | 'warning' = 'warning';
+  confirmActionType: 'cancelMeeting' | 'removeParticipant' | null = null;
+  confirmMeetingTarget: Meeting | null = null;
+  confirmParticipantEmail = '';
+  showEditModal = false;
+  showAgendaEditorModal = false;
+  agendaEditorOpenedFromCard = false;
+  isUpdatingMeeting = false;
+  isSavingAgenda = false;
+  isRemovingParticipant = false;
+  removingParticipantEmail = '';
+  agendaValidationAttempted = false;
+  initialAgendaSnapshot = '[]';
+  editErrorMessage = '';
+  participantActionError = '';
+  // Invite modal state
+  showInviteModal = false;
+  isInviting = false;
+  inviteErrorMessage = '';
+  inviteSuccessMessage = '';
+  inviteMeetingId: number | null = null;
+  inviteEmailInput = '';
+  inviteEmails: string[] = [];
+  inviteEmailError = '';
+  existingParticipantEmails: string[] = [];
+  editAgendaDragIndex: number | null = null;
+  editAttachmentFiles: File[] = [];
+  isUploadingEditAttachments = false;
+  isDeletingAttachment = false;
+  deletingAttachmentId: number | null = null;
+  editForm: UpdateMeetingRequest & { id: number | null } = {
+    id: null,
+    title: '',
+    agenda: '',
+    agendaItems: [],
+    date: '',
+    startTime: '',
+    endTime: '',
+    externalMeetingLink: '',
+    syncWithGoogleCalendar: false,
+  };
+  errorMessage = '';
+  sortOrder: 'newest' | 'oldest' = 'newest';
+  
+  // Pagination
+  currentPage = 0;
+  pageSize = 10;
+  totalPages = 0;
+  totalElements = 0;
+  isFirstPage = true;
+  isLastPage = true;
+  isLoading = false;
+  
+  private readonly subscriptions: Subscription[] = [];
+
+  constructor(
+    private meetingService: MeetingService,
+    private authService: AuthService,
+    private cdr: ChangeDetectorRef,
+    private toastService: ToastService,
+    private minutesService: MeetingMinutesService,
+    private modalOverlayService: ModalOverlayService,
+  ) {}
+
+  ngOnInit(): void {
+    if (!isPlatformBrowser(this.platformId)) {
+      return;
+    }
+
+    if (!this.authService.getToken()) {
+      this.errorMessage = 'Bạn chưa đăng nhập hoặc phiên đăng nhập không còn hợp lệ.';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    const userInfo = this.authService.getUserInfo();
+    this.currentUserEmail = userInfo?.email || '';
+
+    this.loadMeetingsPage();
+  }
+
+  loadMeetingsPage(): void {
+    this.isLoading = true;
+    this.errorMessage = '';
+
+    const loadSub = this.meetingService.getActiveMeetingsPaginated(this.currentPage, this.pageSize, this.sortOrder)
+      .pipe(timeout(10000))
+      .subscribe({
+        next: (response) => {
+          this.meetings = response.content;
+          this.currentPage = response.page;
+          this.pageSize = response.size;
+          this.totalPages = response.totalPages;
+          this.totalElements = response.totalElements;
+          this.isFirstPage = response.first;
+          this.isLastPage = response.last;
+          this.isLoading = false;
+          this.cdr.detectChanges();
+        },
+        error: (error) => {
+          if (error instanceof TimeoutError) {
+            this.errorMessage = 'Máy chủ không phản hồi khi tải cuộc họp. Vui lòng thử lại.';
+          } else {
+            this.errorMessage = 'Không thể tải dữ liệu cuộc họp. Vui lòng thử lại.';
+          }
+          console.error('Load meetings failed', error);
+          this.isLoading = false;
+          this.cdr.detectChanges();
+        }
+      });
+    this.subscriptions.push(loadSub);
+  }
+
+  ngOnDestroy(): void {
+    this.subscriptions.forEach(sub => sub.unsubscribe());
+  }
+
+  getAvatarColor(index: number): string {
+    const colors = [
+      'bg-blue-500',
+      'bg-green-500',
+      'bg-purple-500',
+      'bg-pink-500',
+      'bg-yellow-500',
+      'bg-red-500',
+      'bg-indigo-500',
+      'bg-teal-500'
+    ];
+    return colors[index % colors.length];
+  }
+
+  getInitials(name: string | undefined): string {
+    if (!name) return '?';
+    const parts = name.split(' ');
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  }
+
+  formatDate(dateTime: string): string {
+    const date = new Date(dateTime);
+    return date.toLocaleDateString('vi-VN', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  }
+
+  formatTime(startTime: string, endTime: string): string {
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+
+    return `${start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - ${end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
+  }
+
+  formatDateTime(dateTime: string): string {
+    const date = new Date(dateTime);
+    return date.toLocaleString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
+  onInvite(meeting: Meeting): void {
+    this.inviteMeetingId = meeting.id;
+    this.inviteEmails = [];
+    this.inviteEmailInput = '';
+    this.inviteEmailError = '';
+    this.inviteErrorMessage = '';
+    this.inviteSuccessMessage = '';
+    this.isInviting = false;
+    this.existingParticipantEmails = meeting.participants.map(p => p.email.toLowerCase());
+    this.showInviteModal = true;
+  }
+
+  addInviteEmail(): void {
+    const email = this.inviteEmailInput.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      this.inviteEmailError = 'Email không hợp lệ.';
+      return;
+    }
+    if (this.currentUserEmail && email === this.currentUserEmail.toLowerCase()) {
+      this.inviteEmailError = 'Bạn không thể tự mời chính mình vào cuộc họp do bạn tạo.';
+      return;
+    }
+    if (this.inviteEmails.includes(email)) {
+      this.inviteEmailError = 'Email này đã được thêm.';
+      return;
+    }
+    if (this.existingParticipantEmails.includes(email)) {
+      this.inviteEmailError = 'Email này đã là người tham gia trong cuộc họp.';
+      return;
+    }
+    this.inviteEmails.push(email);
+    this.inviteEmailInput = '';
+    this.inviteEmailError = '';
+  }
+
+  removeInviteEmail(email: string): void {
+    this.inviteEmails = this.inviteEmails.filter(e => e !== email);
+  }
+
+  submitInvite(): void {
+    if (this.isInviting || this.inviteMeetingId == null) return;
+    if (this.inviteEmailInput.trim()) {
+      this.addInviteEmail();
+      if (this.inviteEmailError) return;
+    }
+    if (this.inviteEmails.length === 0) {
+      this.inviteErrorMessage = 'Vui lòng thêm ít nhất một email để mời.';
+      return;
+    }
+
+    const meetingId = this.inviteMeetingId;
+    const invitedCount = this.inviteEmails.length;
+    this.isInviting = true;
+    this.inviteErrorMessage = '';
+    this.inviteSuccessMessage = '';
+
+    const inviteSub = this.meetingService
+      .inviteAttendees(meetingId, { attendeeEmails: this.inviteEmails })
+      .pipe(
+        finalize(() => {
+          this.isInviting = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: () => {
+          this.inviteSuccessMessage = `Đã gửi lời mời đến ${invitedCount} người thành công!`;
+          this.toastService.success(`Đã gửi lời mời đến ${invitedCount} người thành công!`);
+          this.inviteEmails = [];
+          this.inviteEmailInput = '';
+          this.refreshMeetingsView();
+          this.cdr.detectChanges();
+        },
+        error: (error) => {
+          this.inviteErrorMessage = error?.error?.message || 'Không thể gửi lời mời. Vui lòng thử lại.';
+          this.toastService.error(this.inviteErrorMessage);
+          this.cdr.detectChanges();
+        },
+      });
+    this.subscriptions.push(inviteSub);
+  }
+
+  closeInviteModal(): void {
+    this.showInviteModal = false;
+    this.inviteMeetingId = null;
+    this.inviteEmails = [];
+    this.inviteEmailInput = '';
+    this.inviteEmailError = '';
+    this.inviteErrorMessage = '';
+    this.inviteSuccessMessage = '';
+    this.isInviting = false;
+  }
+
+  onInviteModalBackdropClick(event: MouseEvent): void {
+    if ((event.target as HTMLElement).classList.contains('modal-backdrop')) {
+      this.closeInviteModal();
+    }
+  }
+
+  onEdit(meeting: Meeting): void {
+    this.openEditModal(meeting);
+  }
+
+  onManageAgenda(meeting: Meeting): void {
+    this.openEditModal(meeting);
+    this.openAgendaEditorModal(true);
+  }
+
+  onCancel(meeting: Meeting): void {
+    this.showConfirmModal = true;
+    this.confirmActionType = 'cancelMeeting';
+    this.confirmMeetingTarget = meeting;
+    this.confirmParticipantEmail = '';
+    this.confirmTitle = 'Xác nhận hủy cuộc họp';
+    this.confirmMessage = `Bạn có chắc muốn hủy cuộc họp "${meeting.title}"? Hành động này sẽ thông báo đến người tham gia.`;
+    this.confirmActionLabel = 'Hủy cuộc họp';
+    this.confirmActionStyle = 'danger';
+  }
+
+  getStatusClass(status: string): string {
+    switch (status) {
+      case 'scheduled':
+        return 'bg-green-100 text-green-800';
+      case 'in_progress':
+        return 'bg-blue-100 text-blue-800';
+      case 'cancelled':
+        return 'bg-red-100 text-red-800';
+      case 'completed':
+        return 'bg-gray-100 text-gray-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  }
+
+  getStatusText(status: string): string {
+    switch (status) {
+      case 'scheduled':
+        return 'Đã lên lịch';
+      case 'in_progress':
+        return 'Đang diễn ra';
+      case 'cancelled':
+        return 'Đã hủy';
+      case 'completed':
+        return 'Hoàn thành';
+      default:
+        return status;
+    }
+  }
+
+  /**
+   * Kiểm tra xem cuộc họp có đang diễn ra không
+   */
+  isMeetingOngoing(meeting: Meeting): boolean {
+    return isMeetingOngoing(meeting);
+  }
+
+  /**
+   * Kiểm tra xem cuộc họp đã kết thúc chưa
+   */
+  isMeetingEnded(meeting: Meeting): boolean {
+    return isMeetingEnded(meeting);
+  }
+
+  /**
+   * Kiểm tra xem cuộc họp có sắp chuyển sang lịch sử không (trong vòng 24h sau khi kết thúc)
+   */
+  isMeetingPendingHistory(meeting: Meeting): boolean {
+    return isMeetingPendingHistory(meeting);
+  }
+
+  /**
+   * Lấy thông báo countdown cho cuộc họp sắp chuyển lịch sử
+   */
+  getHistoryCountdownMessage(meeting: Meeting): string {
+    const now = new Date();
+    const end = new Date(meeting.endTime);
+    const historyThreshold = new Date(end.getTime() + 24 * 60 * 60 * 1000);
+
+    if (now >= historyThreshold) {
+      return 'Đã chuyển sang lịch sử';
+    }
+
+    const diffMs = historyThreshold.getTime() - now.getTime();
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (hours > 0) {
+      return `Sẽ chuyển sang lịch sử sau ${hours} giờ ${minutes} phút`;
+    } else {
+      return `Sẽ chuyển sang lịch sử sau ${minutes} phút`;
+    }
+  }
+
+  getParticipantStatusText(status: ParticipantInvitationStatus | undefined): string {
+    switch (status) {
+      case 'accepted':
+        return 'Đã chấp nhận';
+      case 'declined':
+        return 'Đã từ chối';
+      default:
+        return 'Chờ phản hồi';
+    }
+  }
+
+  getParticipantStatusClass(status: ParticipantInvitationStatus | undefined): string {
+    switch (status) {
+      case 'accepted':
+        return 'bg-green-100 text-green-700';
+      case 'declined':
+        return 'bg-red-100 text-red-700';
+      default:
+        return 'bg-amber-100 text-amber-700';
+    }
+  }
+
+  get activeMeetings(): Meeting[] {
+    return this.meetings.filter((meeting) =>
+      meeting.status === 'scheduled' || meeting.status === 'in_progress'
+    );
+  }
+
+  get sortedMeetings(): Meeting[] {
+    // Meetings are already sorted by API, just return active meetings
+    return this.activeMeetings;
+  }
+
+  onSortChange(): void {
+    this.currentPage = 0;
+    this.loadMeetingsPage();
+  }
+
+  isCreator(meeting: Meeting): boolean {
+    return meeting.organizerEmail === this.currentUserEmail;
+  }
+
+  onView(meeting: Meeting): void {
+    this.openDetailModal(meeting);
+  }
+
+  onCreateMinutes(meeting: Meeting): void {
+    // Đóng modal chi tiết trước và clear selectedMeeting
+    this.showDetailModal = false;
+    this.modalOverlayService.setModalOpen(false);
+    const meetingToEdit = { ...meeting };
+    this.selectedMeeting = null as any;
+    this.cdr.detectChanges();
+    
+    // Mở form Minutes sau một khoảng trễ nhỏ để đảm bảo modal chi tiết đã đóng
+    setTimeout(() => {
+      this.selectedMeeting = meetingToEdit;
+      this.showMinutesEditor = true;
+      this.cdr.detectChanges();
+    }, 10);
+  }
+
+  openDetailModal(meeting: Meeting): void {
+    this.selectedMeeting = meeting;
+    this.showDetailModal = true;
+    this.modalOverlayService.setModalOpen(true);
+  }
+
+  closeDetailModal(): void {
+    this.showDetailModal = false;
+    this.selectedMeeting = null;
+    this.isRemovingParticipant = false;
+    this.removingParticipantEmail = '';
+    this.participantActionError = '';
+    this.modalOverlayService.setModalOpen(false);
+  }
+
+  closeMinutesEditor(): void {
+    this.showMinutesEditor = false;
+    this.selectedMeeting = null;
+  }
+
+  onViewMinutes(meeting: Meeting): void {
+    if (!meeting.id) return;
+    
+    this.minutesService.getMinutesByMeeting(meeting.id).subscribe({
+      next: (minutes) => {
+        if (minutes) {
+          this.viewMinutes = minutes;
+          this.generateMinutesPdf(minutes);
+        } else {
+          this.toastService.warning('Cuộc họp này chưa có biên bản.');
+        }
+      },
+      error: () => {
+        this.toastService.error('Không thể tải biên bản cuộc họp.');
+      }
+    });
+  }
+
+  downloadMinutesPdf(): void {
+    if (!this.viewMinutes) {
+      this.toastService.warning('Không có biên bản để tải.');
+      return;
+    }
+
+    // Nếu có pdfUrl thì tải từ link, ngược lại sinh PDF từ nội dung
+    if (this.viewMinutes.pdfUrl) {
+      const link = document.createElement('a');
+      link.href = this.viewMinutes.pdfUrl!;
+      link.download = `BienBan_${this.viewMinutes.title}.pdf`;
+      link.target = '_blank';
+      link.click();
+      return;
+    }
+
+    // Sinh PDF từ nội dung
+    this.generateMinutesPdf(this.viewMinutes);
+  }
+
+  closeViewMinutesModal(): void {
+    this.viewMinutes = null;
+  }
+
+  onMinutesModalBackdropClick(event: MouseEvent): void {
+    if ((event.target as HTMLElement).classList.contains('modal-backdrop')) {
+      this.closeViewMinutesModal();
+    }
+  }
+
+  generateMinutesPdf(minutes: MeetingMinutes): void {
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 20;
+    const contentWidth = pageWidth - 2 * margin;
+    let y = margin;
+
+    // Helper function to add centered text
+    const addCenteredText = (text: string, fontSize: number, fontWeight: 'bold' | 'normal', yPos: number) => {
+      doc.setFont('helvetica', fontWeight);
+      doc.setFontSize(fontSize);
+      doc.text(text, pageWidth / 2, yPos, { align: 'center' });
+    };
+
+    // Helper function to add left-aligned text
+    const addLeftText = (text: string, fontSize: number, fontWeight: 'bold' | 'normal', yPos: number) => {
+      doc.setFont('helvetica', fontWeight);
+      doc.setFontSize(fontSize);
+      doc.text(text, margin, yPos);
+    };
+
+    // Title - CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+    addCenteredText('CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM', 12, 'bold', y + 5);
+    y += 7;
+    addCenteredText('Độc lập - Tự do - Hạnh phúc', 12, 'normal', y + 5);
+    y += 15;
+
+    // Title - BIÊN BẢN CUỘC HỌP
+    addCenteredText('BIÊN BẢN CUỘC HỌP', 16, 'bold', y + 5);
+    y += 12;
+
+    // Meeting title
+    addCenteredText(minutes.title || '', 14, 'bold', y + 5);
+    y += 15;
+
+    // Time
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('1. Thời gian:', margin, y);
+    y += 7;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(11);
+    const timeValue = `${this.formatDateTime(minutes.minutesCreatedAt)} - ${this.formatDateTime(minutes.minutesClosedAt)}`;
+    doc.text(timeValue, margin + 5, y);
+    y += 10;
+
+    // Location
+    if (minutes.location) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text('2. Địa điểm:', margin, y);
+      y += 7;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      const locationLines = doc.splitTextToSize(minutes.location, contentWidth - 5);
+      doc.text(locationLines, margin + 5, y);
+      y += locationLines.length * 6 + 4;
+    } else {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text('2. Địa điểm:', margin, y);
+      y += 7;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text('Không có', margin + 5, y);
+      y += 10;
+    }
+
+    // Purpose
+    if (minutes.purpose) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text('3. Mục đích:', margin, y);
+      y += 7;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      const purposeLines = doc.splitTextToSize(minutes.purpose, contentWidth - 5);
+      doc.text(purposeLines, margin + 5, y);
+      y += purposeLines.length * 6 + 4;
+    }
+
+    // Attendees
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('4. Thành phần tham dự:', margin, y);
+    y += 7;
+    if (minutes.attendees) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      const attendeeLines = doc.splitTextToSize(minutes.attendees, contentWidth - 5);
+      doc.text(attendeeLines, margin + 5, y);
+      y += attendeeLines.length * 6 + 4;
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text('Không có', margin + 5, y);
+      y += 10;
+    }
+
+    // Absentees
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('5. Vắng mặt:', margin, y);
+    y += 7;
+    if (minutes.absentees) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      const absenteeLines = doc.splitTextToSize(minutes.absentees, contentWidth - 5);
+      doc.text(absenteeLines, margin + 5, y);
+      y += absenteeLines.length * 6 + 4;
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text('Không có', margin + 5, y);
+      y += 10;
+    }
+
+    // Content
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('6. Nội dung cuộc họp:', margin, y);
+    y += 7;
+    if (minutes.content) {
+      if (y > 240) { doc.addPage(); y = margin; }
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      const contentLines = doc.splitTextToSize(minutes.content, contentWidth - 5);
+      doc.text(contentLines, margin + 5, y);
+      y += contentLines.length * 6 + 4;
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text('Không có', margin + 5, y);
+      y += 10;
+    }
+
+    // Decisions
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('7. Quyết định, chỉ thị:', margin, y);
+    y += 7;
+    if (minutes.decisions) {
+      if (y > 240) { doc.addPage(); y = margin; }
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      const decisionsLines = doc.splitTextToSize(minutes.decisions, contentWidth - 5);
+      doc.text(decisionsLines, margin + 5, y);
+      y += decisionsLines.length * 6 + 4;
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text('Không có', margin + 5, y);
+      y += 10;
+    }
+
+    // Contributions
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('8. Ý kiến đóng góp:', margin, y);
+    y += 7;
+    if (minutes.contributions) {
+      if (y > 240) { doc.addPage(); y = margin; }
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      const contributionsLines = doc.splitTextToSize(minutes.contributions, contentWidth - 5);
+      doc.text(contributionsLines, margin + 5, y);
+      y += contributionsLines.length * 6 + 4;
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text('Không có', margin + 5, y);
+      y += 10;
+    }
+
+    // Voting
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('9. Biểu quyết:', margin, y);
+    y += 7;
+    if (minutes.voting) {
+      if (y > 240) { doc.addPage(); y = margin; }
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      const votingLines = doc.splitTextToSize(minutes.voting, contentWidth - 5);
+      doc.text(votingLines, margin + 5, y);
+      y += votingLines.length * 6 + 4;
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text('Không có', margin + 5, y);
+      y += 10;
+    }
+
+    // Conclusions
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('10. Kết luận:', margin, y);
+    y += 7;
+    if (minutes.conclusions) {
+      if (y > 240) { doc.addPage(); y = margin; }
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      const conclusionsLines = doc.splitTextToSize(minutes.conclusions, contentWidth - 5);
+      doc.text(conclusionsLines, margin + 5, y);
+      y += conclusionsLines.length * 6 + 4;
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text('Không có', margin + 5, y);
+      y += 10;
+    }
+
+    // Signatures
+    if (minutes.signatures && minutes.signatures.length > 0) {
+      if (y > 200) { doc.addPage(); y = margin; }
+      y += 10;
+      
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text('CHỮ KÝ', pageWidth / 2, y, { align: 'center' });
+      y += 10;
+
+      const sigPerRow = 2;
+      const sigWidth = (contentWidth - 10) / sigPerRow;
+
+      minutes.signatures.forEach((sig, index) => {
+        const row = Math.floor(index / sigPerRow);
+        const col = index % sigPerRow;
+        const sigX = margin + col * (sigWidth + 10);
+        const sigY = y + row * 45;
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.text(sig.signerName || sig.signerEmail, sigX, sigY);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.text(sig.agreed ? 'Đã ký (Đồng ý)' : 'Đã ký (Không đồng ý)', sigX, sigY + 6);
+        if (sig.signedAt) {
+          doc.text(`Lúc: ${new Date(sig.signedAt).toLocaleString('vi-VN')}`, sigX, sigY + 12);
+        }
+        if (sig.notes) {
+          const notesLines = doc.splitTextToSize(sig.notes, sigWidth);
+          doc.text(notesLines, sigX, sigY + 18);
+        }
+      });
+    }
+
+    // Save PDF
+    doc.save(`BienBan_${minutes.title}.pdf`);
+    this.toastService.success('Đã tải biên bản PDF thành công!');
+  }
+
+  closeConfirmModal(): void {
+    this.showConfirmModal = false;
+    this.confirmActionType = null;
+    this.confirmMeetingTarget = null;
+    this.confirmParticipantEmail = '';
+    this.confirmTitle = '';
+    this.confirmMessage = '';
+    this.confirmActionLabel = '';
+    this.confirmActionStyle = 'warning';
+  }
+
+  onConfirmModalBackdropClick(event: MouseEvent): void {
+    if ((event.target as HTMLElement).classList.contains('modal-backdrop')) {
+      this.closeConfirmModal();
+    }
+  }
+
+  confirmAction(): void {
+    if (!this.confirmActionType || !this.confirmMeetingTarget) {
+      this.closeConfirmModal();
+      return;
+    }
+
+    const meeting = this.confirmMeetingTarget;
+    const actionType = this.confirmActionType;
+    const participantEmail = this.confirmParticipantEmail;
+    this.closeConfirmModal();
+
+    if (actionType === 'cancelMeeting') {
+      this.executeCancelMeeting(meeting);
+      return;
+    }
+
+    if (actionType === 'removeParticipant') {
+      this.executeRemoveParticipant(meeting, participantEmail);
+    }
+  }
+
+  private refreshMeetingsView(): void {
+    this.loadMeetingsPage();
+  }
+
+  // Pagination methods
+  onPageChange(page: number): void {
+    // Pagination component uses 1-based, convert to 0-based for API
+    const zeroBasedPage = page - 1;
+    if (zeroBasedPage < 0 || zeroBasedPage >= this.totalPages || zeroBasedPage === this.currentPage) {
+      return;
+    }
+    this.currentPage = zeroBasedPage;
+    this.loadMeetingsPage();
+  }
+
+  onPageSizeChange(pageSize: number): void {
+    this.pageSize = pageSize;
+    this.currentPage = 0;
+    this.loadMeetingsPage();
+  }
+
+  goToPage(page: number): void {
+    if (page < 0 || page >= this.totalPages || page === this.currentPage) {
+      return;
+    }
+    this.currentPage = page;
+    this.loadMeetingsPage();
+  }
+
+  onModalBackdropClick(event: MouseEvent): void {
+    if ((event.target as HTMLElement).classList.contains('modal-backdrop')) {
+      this.closeDetailModal();
+    }
+  }
+
+  onRemoveParticipant(meeting: Meeting, participantEmail: string): void {
+    if (this.isRemovingParticipant || !this.isCreator(meeting)) {
+      return;
+    }
+
+    const normalizedEmail = participantEmail.trim().toLowerCase();
+    if (!normalizedEmail) {
+      return;
+    }
+
+    this.showConfirmModal = true;
+    this.confirmActionType = 'removeParticipant';
+    this.confirmMeetingTarget = meeting;
+    this.confirmParticipantEmail = normalizedEmail;
+    this.confirmTitle = 'Xác nhận xóa người tham gia';
+    this.confirmMessage = `Bạn có chắc muốn xóa người tham gia "${participantEmail}" khỏi cuộc họp này?`;
+    this.confirmActionLabel = 'Xóa người tham gia';
+    this.confirmActionStyle = 'warning';
+  }
+
+  private executeCancelMeeting(meeting: Meeting): void {
+    const cancelSub = this.meetingService
+      .cancelMeeting(meeting.id)
+      .subscribe({
+        next: () => {
+          this.errorMessage = '';
+          // Ensure active list updates immediately even before refresh completes.
+          this.meetings = this.meetings.filter((item) => item.id !== meeting.id);
+          this.closeDetailModal();
+          this.refreshMeetingsView();
+          this.toastService.success(`Đã hủy cuộc họp "${meeting.title}" thành công!`);
+          this.cdr.detectChanges();
+        },
+        error: (error) => {
+          this.errorMessage = error?.error?.message || 'Không thể hủy cuộc họp. Vui lòng thử lại.';
+          this.toastService.error(this.errorMessage);
+          this.cdr.detectChanges();
+        }
+      });
+    this.subscriptions.push(cancelSub);
+  }
+
+  private executeRemoveParticipant(meeting: Meeting, normalizedEmail: string): void {
+    if (!normalizedEmail) {
+      return;
+    }
+
+    this.isRemovingParticipant = true;
+    this.removingParticipantEmail = normalizedEmail;
+    this.participantActionError = '';
+
+    const removeSub = this.meetingService
+      .removeAttendee(meeting.id, normalizedEmail)
+      .pipe(
+        finalize(() => {
+          this.isRemovingParticipant = false;
+          this.removingParticipantEmail = '';
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (updatedMeeting) => {
+          if (this.selectedMeeting && this.selectedMeeting.id === updatedMeeting.id) {
+            this.selectedMeeting = updatedMeeting;
+          }
+          this.participantActionError = '';
+          this.refreshMeetingsView();
+          this.toastService.success('Đã xóa người tham gia thành công!');
+          this.cdr.detectChanges();
+        },
+        error: (error) => {
+          this.participantActionError = error?.error?.message || 'Không thể xóa người tham gia. Vui lòng thử lại.';
+          this.toastService.error(this.participantActionError);
+          this.cdr.detectChanges();
+        },
+      });
+
+    this.subscriptions.push(removeSub);
+  }
+
+  onEditModalBackdropClick(event: MouseEvent): void {
+    if (this.showAgendaEditorModal) {
+      return;
+    }
+
+    if ((event.target as HTMLElement).classList.contains('modal-backdrop')) {
+      this.closeEditModal();
+    }
+  }
+
+  closeEditModal(): void {
+    this.showEditModal = false;
+    this.showAgendaEditorModal = false;
+    this.agendaEditorOpenedFromCard = false;
+    this.isUpdatingMeeting = false;
+    this.isSavingAgenda = false;
+    this.agendaValidationAttempted = false;
+    this.initialAgendaSnapshot = '[]';
+    this.editAgendaDragIndex = null;
+    this.editErrorMessage = '';
+    this.editAttachmentFiles = [];
+    this.isUploadingEditAttachments = false;
+    this.isDeletingAttachment = false;
+    this.deletingAttachmentId = null;
+    this.editForm = {
+      id: null,
+      title: '',
+      agenda: '',
+      agendaItems: [],
+      date: '',
+      startTime: '',
+      endTime: '',
+      externalMeetingLink: '',
+      syncWithGoogleCalendar: false,
+    };
+  }
+
+  openAgendaEditorModal(openedFromCard: boolean = false): void {
+    if (this.isSavingAgenda) {
+      return;
+    }
+
+    this.agendaEditorOpenedFromCard = openedFromCard;
+    this.showAgendaEditorModal = true;
+    this.agendaValidationAttempted = false;
+    this.editAgendaDragIndex = null;
+  }
+
+  closeAgendaEditorModal(): void {
+    if (this.isSavingAgenda) {
+      return;
+    }
+
+    this.closeAgendaEditorModalInternal();
+  }
+
+  private closeAgendaEditorModalInternal(): void {
+
+    if (this.agendaEditorOpenedFromCard) {
+      this.closeEditModal();
+      return;
+    }
+
+    this.showAgendaEditorModal = false;
+    this.editAgendaDragIndex = null;
+  }
+
+  onAgendaEditorBackdropClick(event: MouseEvent): void {
+    if (this.isSavingAgenda) {
+      return;
+    }
+
+    if ((event.target as HTMLElement).classList.contains('modal-backdrop')) {
+      this.closeAgendaEditorModal();
+    }
+  }
+
+  submitEditMeeting(): void {
+    if (this.isUpdatingMeeting || this.editForm.id == null) {
+      return;
+    }
+
+    if (!this.editForm.title.trim() || !this.editForm.date || !this.editForm.startTime || !this.editForm.endTime) {
+      this.editErrorMessage = 'Vui lòng nhập đầy đủ tiêu đề, ngày và thời gian.';
+      return;
+    }
+
+    const start = new Date(`${this.editForm.date}T${this.editForm.startTime}:00`);
+    const end = new Date(`${this.editForm.date}T${this.editForm.endTime}:00`);
+    if (end <= start) {
+      this.editErrorMessage = 'Thời gian kết thúc phải sau thời gian bắt đầu.';
+      return;
+    }
+
+    const agendaValidationError = this.validateAgendaItems(this.editForm.agendaItems || []);
+    if (agendaValidationError) {
+      this.editErrorMessage = agendaValidationError;
+      return;
+    }
+
+    this.isUpdatingMeeting = true;
+    this.isUploadingEditAttachments = this.editAttachmentFiles.length > 0;
+    this.editErrorMessage = '';
+    this.normalizeEditAgendaOrders();
+
+    const updateSub = this.meetingService.updateMeeting(this.editForm.id, {
+      title: this.editForm.title,
+      agenda: this.editForm.agenda,
+      agendaItems: this.editForm.agendaItems,
+      date: this.editForm.date,
+      startTime: this.editForm.startTime,
+      endTime: this.editForm.endTime,
+      externalMeetingLink: this.editForm.externalMeetingLink,
+      syncWithGoogleCalendar: this.editForm.syncWithGoogleCalendar,
+    }).pipe(
+      concatMap(() => {
+        if (this.editForm.id == null || this.editAttachmentFiles.length === 0) {
+          return this.meetingService.loadMeetings();
+        }
+
+        return this.meetingService
+          .uploadAttachmentsToMeeting(this.editForm.id, this.editAttachmentFiles)
+          .pipe(concatMap(() => this.meetingService.loadMeetings()));
+      }),
+      finalize(() => {
+        this.isUpdatingMeeting = false;
+        this.isUploadingEditAttachments = false;
+        this.cdr.detectChanges();
+      })
+    ).subscribe({
+      next: () => {
+        this.isUpdatingMeeting = false;
+        this.isUploadingEditAttachments = false;
+        const hasQueuedAttachments = this.editAttachmentFiles.length > 0;
+        this.editAttachmentFiles = [];
+        this.closeEditModal();
+        this.toastService.success(
+          hasQueuedAttachments
+            ? 'Đã cập nhật cuộc họp và upload tài liệu thành công!'
+            : 'Đã cập nhật cuộc họp thành công!'
+        );
+        this.cdr.detectChanges();
+      },
+      error: (error) => {
+        this.isUpdatingMeeting = false;
+        this.isUploadingEditAttachments = false;
+        this.editErrorMessage = error?.error?.message || 'Không thể cập nhật cuộc họp. Vui lòng thử lại.';
+        this.toastService.error(this.editErrorMessage);
+        this.cdr.detectChanges();
+      },
+    });
+
+    this.subscriptions.push(updateSub);
+  }
+
+  private openEditModal(meeting: Meeting): void {
+    const start = new Date(meeting.startTime);
+    const end = new Date(meeting.endTime);
+
+    this.selectedMeeting = meeting;
+
+    this.editForm = {
+      id: meeting.id,
+      title: meeting.title,
+      agenda: meeting.agenda || '',
+      agendaItems: (meeting.agendaItems || []).map((item, index) => ({
+        id: item.id,
+        title: item.title,
+        durationMinutes: item.durationMinutes,
+        description: item.description || '',
+        itemOrder: index + 1,
+      })),
+      date: this.toDateInputValue(start),
+      startTime: this.toTimeInputValue(start),
+      endTime: this.toTimeInputValue(end),
+      externalMeetingLink: meeting.meetingLink || '',
+      syncWithGoogleCalendar: meeting.syncedWithGoogleCalendar,
+    };
+
+    this.editErrorMessage = '';
+    this.agendaValidationAttempted = false;
+    this.initialAgendaSnapshot = this.buildAgendaSnapshot(this.editForm.agendaItems || []);
+    this.editAgendaDragIndex = null;
+    this.showEditModal = true;
+  }
+
+  onEditAttachmentSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const files = input.files;
+
+    if (!files || files.length === 0) {
+      return;
+    }
+
+    const maxFileSizeBytes = 50 * 1024 * 1024;
+    const maxTotalFiles = 10;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files.item(i);
+      if (!file) {
+        continue;
+      }
+
+      if ((this.editAttachmentFiles.length + (this.selectedMeeting?.attachments?.length ?? 0)) >= maxTotalFiles) {
+        this.editErrorMessage = 'Tối đa 10 tài liệu cho mỗi cuộc họp.';
+        break;
+      }
+
+      if (file.size > maxFileSizeBytes) {
+        this.editErrorMessage = `Tài liệu "${file.name}" vượt quá 50MB.`;
+        continue;
+      }
+
+      const duplicateInQueue = this.editAttachmentFiles.some(
+        (existingFile) =>
+          existingFile.name === file.name &&
+          existingFile.size === file.size &&
+          existingFile.type === file.type
+      );
+      const duplicateInMeeting = (this.selectedMeeting?.attachments ?? []).some(
+        (attachment) =>
+          attachment.fileName === file.name &&
+          (attachment.fileSizeBytes ?? 0) === file.size
+      );
+
+      if (duplicateInQueue || duplicateInMeeting) {
+        continue;
+      }
+
+      this.editAttachmentFiles.push(file);
+    }
+
+    input.value = '';
+  }
+
+  removeEditAttachmentFile(index: number): void {
+    this.editAttachmentFiles = this.editAttachmentFiles.filter((_, currentIndex) => currentIndex !== index);
+  }
+
+  uploadEditAttachments(): void {
+    if (this.editForm.id == null || this.isUploadingEditAttachments || this.editAttachmentFiles.length === 0) {
+      return;
+    }
+
+    this.isUploadingEditAttachments = true;
+    this.editErrorMessage = '';
+
+    const uploadSub = this.meetingService
+      .uploadAttachmentsToMeeting(this.editForm.id, this.editAttachmentFiles)
+      .pipe(
+        concatMap(() => this.meetingService.loadMeetings()),
+        finalize(() => {
+          this.isUploadingEditAttachments = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: () => {
+          this.isUploadingEditAttachments = false;
+          this.editAttachmentFiles = [];
+          this.toastService.success('Đã tải tài liệu lên Cloudinary thành công!');
+          this.cdr.detectChanges();
+        },
+        error: (error) => {
+          this.isUploadingEditAttachments = false;
+          this.editErrorMessage = error?.error?.message || 'Không thể tải tài liệu lên. Vui lòng thử lại.';
+          this.toastService.error(this.editErrorMessage);
+          this.cdr.detectChanges();
+        },
+      });
+
+    this.subscriptions.push(uploadSub);
+  }
+
+  deleteAttachmentFromMeeting(attachment: MeetingAttachment): void {
+    if (this.editForm.id == null || attachment.id == null || this.isDeletingAttachment) {
+      return;
+    }
+
+    this.isDeletingAttachment = true;
+    this.deletingAttachmentId = attachment.id;
+    this.editErrorMessage = '';
+
+    const deleteSub = this.meetingService
+      .deleteAttachmentFromMeeting(this.editForm.id, attachment.id)
+      .pipe(
+        concatMap(() => this.meetingService.loadMeetings()),
+        finalize(() => {
+          this.isDeletingAttachment = false;
+          this.deletingAttachmentId = null;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: () => {
+          this.toastService.success('Đã xóa tài liệu thành công!');
+          this.cdr.detectChanges();
+        },
+        error: (error) => {
+          this.editErrorMessage = error?.error?.message || 'Không thể xóa tài liệu. Vui lòng thử lại.';
+          this.toastService.error(this.editErrorMessage);
+          this.cdr.detectChanges();
+        },
+      });
+
+    this.subscriptions.push(deleteSub);
+  }
+
+  addEditAgendaItem(): void {
+    this.editForm.agendaItems = [
+      ...(this.editForm.agendaItems || []),
+      {
+        title: '',
+        durationMinutes: 10,
+        description: '',
+        itemOrder: (this.editForm.agendaItems?.length || 0) + 1,
+      },
+    ];
+    this.normalizeEditAgendaOrders();
+  }
+
+  removeEditAgendaItem(index: number): void {
+    this.editForm.agendaItems = (this.editForm.agendaItems || []).filter((_, i) => i !== index);
+    this.normalizeEditAgendaOrders();
+  }
+
+  onEditAgendaDragStart(index: number): void {
+    this.editAgendaDragIndex = index;
+  }
+
+  onEditAgendaDragOver(event: DragEvent): void {
+    event.preventDefault();
+  }
+
+  onEditAgendaDrop(dropIndex: number): void {
+    if (this.editAgendaDragIndex == null || this.editAgendaDragIndex === dropIndex) {
+      this.editAgendaDragIndex = null;
+      return;
+    }
+
+    const items = [...(this.editForm.agendaItems || [])];
+    const [dragged] = items.splice(this.editAgendaDragIndex, 1);
+    const adjustedIndex = this.editAgendaDragIndex < dropIndex ? dropIndex - 1 : dropIndex;
+    items.splice(adjustedIndex, 0, dragged);
+
+    this.editForm.agendaItems = items;
+    this.normalizeEditAgendaOrders();
+    this.editAgendaDragIndex = null;
+  }
+
+  onEditAgendaDragEnd(): void {
+    this.editAgendaDragIndex = null;
+  }
+
+  saveAgendaFromEditor(): void {
+    if (this.isSavingAgenda || this.isUpdatingMeeting || this.editForm.id == null) {
+      return;
+    }
+
+    if (!this.hasAgendaChanges()) {
+      return;
+    }
+
+    this.agendaValidationAttempted = true;
+
+    const agendaValidationError = this.validateAgendaItems(this.editForm.agendaItems || []);
+    if (agendaValidationError) {
+      this.editErrorMessage = agendaValidationError;
+      return;
+    }
+
+    this.isSavingAgenda = true;
+    this.editErrorMessage = '';
+    this.normalizeEditAgendaOrders();
+
+    const updateAgendaSub = this.meetingService
+      .updateMeetingAgenda(this.editForm.id, this.editForm.agendaItems || [])
+      .pipe(
+        finalize(() => {
+          this.isSavingAgenda = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: () => {
+          this.closeAgendaEditorModalInternal();
+          this.toastService.success('Đã lưu agenda thành công!');
+          this.cdr.detectChanges();
+        },
+        error: (error) => {
+          this.editErrorMessage = error?.error?.message || 'Không thể lưu agenda. Vui lòng thử lại.';
+          this.toastService.error(this.editErrorMessage);
+          this.cdr.detectChanges();
+        },
+      });
+
+    this.subscriptions.push(updateAgendaSub);
+  }
+
+  getEditAgendaTotalMinutes(): number {
+    return (this.editForm.agendaItems || []).reduce((sum, item) => {
+      const duration = Number(item.durationMinutes);
+      return sum + (Number.isFinite(duration) ? duration : 0);
+    }, 0);
+  }
+
+  hasAgendaChanges(): boolean {
+    return this.buildAgendaSnapshot(this.editForm.agendaItems || []) !== this.initialAgendaSnapshot;
+  }
+
+  isAgendaSaveDisabled(): boolean {
+    return this.isSavingAgenda || this.isUpdatingMeeting || this.editForm.id == null || !this.hasAgendaChanges();
+  }
+
+  isAgendaDurationInvalid(durationMinutes: number | undefined): boolean {
+    const duration = Number(durationMinutes);
+    return !Number.isInteger(duration) || duration <= 0;
+  }
+
+  getAgendaTotalMinutes(meeting: Meeting): number {
+    if (meeting.totalAgendaDurationMinutes > 0) {
+      return meeting.totalAgendaDurationMinutes;
+    }
+
+    return (meeting.agendaItems || []).reduce((sum, item) => sum + (item.durationMinutes || 0), 0);
+  }
+
+  formatFileSize(sizeBytes: number): string {
+    if (sizeBytes < 1024) {
+      return `${sizeBytes} B`;
+    }
+
+    if (sizeBytes < 1024 * 1024) {
+      return `${(sizeBytes / 1024).toFixed(1)} KB`;
+    }
+
+    return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  getCloudUploadStatusText(status?: string): string {
+    if (!status) {
+      return 'Không có trạng thái';
+    }
+
+    const normalizedStatus = status.toUpperCase();
+    if (normalizedStatus === 'UPLOADED') {
+      return 'Đã tải lên Cloudinary';
+    }
+
+    if (normalizedStatus === 'PLACEHOLDER') {
+      return 'Dữ liệu cũ (placeholder)';
+    }
+
+    return status;
+  }
+
+  getAttachmentOpenUrl(attachment: MeetingAttachment): string {
+    const cloudUrl = attachment.cloudUploadUrl || '';
+    if (!cloudUrl) {
+      return '';
+    }
+
+    if (this.isPdfAttachment(attachment)) {
+      return `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(cloudUrl)}`;
+    }
+
+    return cloudUrl;
+  }
+
+  isPdfAttachment(attachment: MeetingAttachment): boolean {
+    const fileType = (attachment.fileType || '').toLowerCase();
+    const fileName = (attachment.fileName || '').toLowerCase();
+    return fileType.includes('pdf') || fileName.endsWith('.pdf');
+  }
+
+  private normalizeEditAgendaOrders(): void {
+    this.editForm.agendaItems = (this.editForm.agendaItems || []).map((item, index) => ({
+      ...item,
+      itemOrder: index + 1,
+    }));
+  }
+
+  private validateAgendaItems(items: AgendaItem[]): string | null {
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const indexLabel = `Mục #${i + 1}`;
+      const title = item.title?.trim() || '';
+      const description = item.description?.trim() || '';
+      const duration = Number(item.durationMinutes);
+
+      if (!title) {
+        return `${indexLabel}: Tiêu đề mục là bắt buộc.`;
+      }
+
+      if (title.length > 255) {
+        return `${indexLabel}: Tiêu đề mục tối đa 255 ký tự.`;
+      }
+
+      if (!Number.isInteger(duration) || duration <= 0) {
+        return `${indexLabel}: Thời lượng phải là số nguyên dương.`;
+      }
+
+      if (!description) {
+        return `${indexLabel}: Mô tả chi tiết không được để trống.`;
+      }
+
+      if (description.length > 2000) {
+        return `${indexLabel}: Mô tả chi tiết tối đa 2000 ký tự.`;
+      }
+    }
+
+    return null;
+  }
+
+  private buildAgendaSnapshot(items: AgendaItem[]): string {
+    const normalized = (items || []).map((item, index) => ({
+      title: (item.title || '').trim(),
+      durationMinutes: Number(item.durationMinutes),
+      description: (item.description || '').trim(),
+      itemOrder: index + 1,
+    }));
+
+    return JSON.stringify(normalized);
+  }
+
+  private toDateInputValue(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  private toTimeInputValue(date: Date): string {
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${hours}:${minutes}`;
+  }
+}

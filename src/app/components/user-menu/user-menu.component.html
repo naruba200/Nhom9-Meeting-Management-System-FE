@@ -1,0 +1,68 @@
+<div class="user-menu" (click)="$event.stopPropagation()">
+  <button
+    type="button"
+    class="user-menu-trigger"
+    (click)="toggleMenu()"
+    aria-label="Mở menu người dùng"
+    [attr.aria-expanded]="isOpen()"
+  >
+    <span class="user-menu-avatar-wrapper">
+      <span class="user-menu-avatar">{{ getInitials() }}</span>
+      @if (unreadCount > 0) {
+        <span class="user-menu-unread-badge" aria-label="Số thông báo chưa đọc">
+          {{ getUnreadCountLabel() }}
+        </span>
+      }
+    </span>
+    <svg xmlns="http://www.w3.org/2000/svg" class="user-menu-chevron" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+    </svg>
+  </button>
+
+  @if (isOpen()) {
+    <div class="user-menu-panel" role="menu">
+      <div class="user-menu-header">
+        <p class="user-menu-name">{{ fullName() || 'Người dùng' }}</p>
+        <p class="user-menu-email">{{ email() || 'Chưa có email' }}</p>
+      </div>
+
+      @if (authService.isAdmin()) {
+        <a routerLink="/admin/profile" class="user-menu-item" role="menuitem" (click)="closeMenu()">
+          Trang cá nhân
+        </a>
+        <a routerLink="/admin/notifications" class="user-menu-item" role="menuitem" (click)="closeMenu()">
+          <span>Thông báo</span>
+          @if (unreadCount > 0) {
+            <span class="user-menu-item-badge" aria-label="Số thông báo chưa đọc">
+              {{ getUnreadCountLabel() }}
+            </span>
+          }
+        </a>
+      } @else {
+        <a routerLink="/profile" class="user-menu-item" role="menuitem" (click)="closeMenu()">
+          Trang cá nhân
+        </a>
+        <a routerLink="/notifications" class="user-menu-item" role="menuitem" (click)="closeMenu()">
+          <span>Thông báo</span>
+          @if (unreadCount > 0) {
+            <span class="user-menu-item-badge" aria-label="Số thông báo chưa đọc">
+              {{ getUnreadCountLabel() }}
+            </span>
+          }
+        </a>
+        <a routerLink="/meeting/history" class="user-menu-item" role="menuitem" (click)="closeMenu()">
+          Lịch sử họp
+        </a>
+        <a routerLink="/invitations/history" class="user-menu-item" role="menuitem" (click)="closeMenu()">
+          Lịch sử lời mời
+        </a>
+        <a routerLink="/settings" class="user-menu-item" role="menuitem" (click)="closeMenu()">
+          Cài đặt
+        </a>
+      }
+      <button type="button" class="user-menu-item user-menu-logout" role="menuitem" (click)="logout()">
+        Đăng xuất
+      </button>
+    </div>
+  }
+</div>

@@ -1,0 +1,13 @@
+<div class="admin-header">
+  <h1>Admin Dashboard</h1>
+  <div class="admin-header-menu">
+    <a routerLink="/admin/dashboard" routerLinkActive="active">Tổng quan</a>
+    <a routerLink="/admin/users" routerLinkActive="active">Quản lý người dùng</a>
+    <a routerLink="/admin/files" routerLinkActive="active">Quản lý tệp tin</a>
+    <a routerLink="/admin/activities" routerLinkActive="active">Nhật ký hoạt động</a>
+  </div>
+  <div class="user-info">
+    <span class="admin-badge">ADMIN</span>
+    <app-user-menu [fullName]="userInfo?.fullName || ''" [email]="userInfo?.email || ''"></app-user-menu>
+  </div>
+</div>

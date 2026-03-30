@@ -1,0 +1,116 @@
+/* Calendar Component Styles - Material Design Inspired */
+
+.calendar-container {
+  font-family: 'Roboto', 'Google Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* Create Button */
+.create-btn {
+  box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
+}
+
+.create-btn:hover {
+  box-shadow: 0 1px 3px 0 rgba(60, 64, 67, 0.3), 0 4px 8px 3px rgba(60, 64, 67, 0.15);
+}
+
+/* Mini Calendar */
+.mini-calendar {
+  user-select: none;
+}
+
+/* Event Cards */
+.event-card {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.2s ease, transform 0.1s ease;
+}
+
+.event-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transform: scale(1.02);
+}
+
+/* Scrollbar Styles */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #dadce0;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #bdc1c6;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Modal Animation */
+.fixed.inset-0 > div {
+  animation: slideUp 0.2s ease-out;
+}
+
+/* Checkbox custom style */
+input[type="checkbox"] {
+  cursor: pointer;
+}
+
+/* Focus states */
+button:focus-visible {
+  outline: 2px solid #4285f4;
+  outline-offset: 2px;
+}
+
+input:focus-visible {
+  outline: none;
+}
+
+/* Time grid lines */
+.border-b {
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.border-l {
+  border-left: 1px solid #e0e0e0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .calendar-container {
+    flex-direction: column;
+  }
+  
+  aside {
+    width: 100%;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+  
+  .w-64 {
+    width: 100%;
+  }
+}
