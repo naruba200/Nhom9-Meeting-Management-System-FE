@@ -6,12 +6,13 @@ import { Subscription } from 'rxjs';
 import { AuthService } from '../../../services/auth.service';
 import { AdminUserService } from '../../../services/admin-user.service';
 import { AdminUser, CreateUserRequest, UpdateUserRequest } from '../../../models/admin-user.models';
+import { UserMenuComponent } from '../../user-menu/user-menu.component';
 import { AdminHeaderComponent } from '../admin-header/admin-header.component';
 
 @Component({
   selector: 'app-admin-users',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, AdminHeaderComponent],
+  imports: [CommonModule, FormsModule, RouterModule, UserMenuComponent, AdminHeaderComponent],
   templateUrl: './admin-users.component.html',
   styleUrls: ['./admin-users.component.scss']
 })

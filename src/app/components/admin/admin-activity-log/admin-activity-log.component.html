@@ -1,0 +1,169 @@
+<div class="admin-activity-page">
+  <admin-header [userInfo]="userInfo"></admin-header>
+  
+  <div class="admin-activity-container">
+    <div class="admin-content">
+      <!-- Header Section -->
+      <div class="header-section">
+        <h2>Nhật ký hoạt động hệ thống</h2>
+        <p>Theo dõi tất cả các hoạt động của người dùng, đăng nhập, xóa, cập nhật và các sự kiện hệ thống khác.</p>
+      </div>
+
+      <!-- Filters Section -->
+      <div class="filters-card">
+        <h3>Bộ lọc</h3>
+        <div class="filters-grid">
+          <div class="filter-group">
+            <label>Loại hành động</label>
+            <select [(ngModel)]="actionTypeFilter" (change)="onFilterChange()" class="filter-input">
+              <option value="">Tất cả</option>
+              <option *ngFor="let type of actionTypes" [value]="type">{{ type }}</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label>Loại đối tượng</label>
+            <select [(ngModel)]="entityTypeFilter" (change)="onFilterChange()" class="filter-input">
+              <option value="">Tất cả</option>
+              <option *ngFor="let type of entityTypes" [value]="type">{{ type }}</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label>Email người dùng</label>
+            <input 
+              type="text" 
+              [(ngModel)]="userEmailFilter" 
+              (change)="onFilterChange()"
+              placeholder="Nhập email..." 
+              class="filter-input"
+            />
+          </div>
+
+          <div class="filter-group">
+            <label>Từ ngày</label>
+            <input 
+              type="datetime-local" 
+              [(ngModel)]="startDateFilter" 
+              (change)="onFilterChange()"
+              class="filter-input"
+            />
+          </div>
+
+          <div class="filter-group">
+            <label>Đến ngày</label>
+            <input 
+              type="datetime-local" 
+              [(ngModel)]="endDateFilter" 
+              (change)="onFilterChange()"
+              class="filter-input"
+            />
+          </div>
+        </div>
+
+        <div class="filter-actions">
+          <button (click)="clearFilters()" class="clear-btn">Xóa bộ lọc</button>
+          <button (click)="exportLogs()" class="export-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2m0 0v-8" />
+            </svg>
+            Xuất CSV
+          </button>
+        </div>
+      </div>
+
+      <!-- Loading State -->
+      <div *ngIf="loading" class="loading-section">
+        <div class="spinner"></div>
+        <p>Đang tải nhật ký hoạt động...</p>
+      </div>
+
+      <!-- Error State -->
+      <div *ngIf="error && !loading" class="error-section">
+        <p class="error-message">{{ error }}</p>
+        <button (click)="retry()" class="retry-btn">Thử lại</button>
+      </div>
+
+      <!-- Activity Table -->
+      <div *ngIf="!loading && !error && activities.length > 0" class="activity-table-wrapper">
+        <table class="activity-table">
+          <thead>
+            <tr>
+              <th>Thời gian</th>
+              <th>Người dùng</th>
+              <th>Hành động</th>
+              <th>Loại đối tượng</th>
+              <th>Mô tả</th>
+              <th>IP Address</th>
+              <th>Mã trạng thái</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let activity of activities" class="activity-row">
+              <td class="timestamp-cell">
+                <span class="timestamp">{{ formatDate(activity.timestamp) }}</span>
+              </td>
+              <td class="user-cell">
+                <div class="user-info-cell">
+                  <div class="user-email">{{ activity.userEmail }}</div>
+                  <div class="user-name">{{ activity.userFullName }}</div>
+                </div>
+              </td>
+              <td class="action-cell">
+                <span [ngClass]="getActionTypeBadgeClass(activity.actionType)">
+                  {{ activity.actionType }}
+                </span>
+              </td>
+              <td class="entity-type-cell">{{ activity.entityType }}</td>
+              <td class="description-cell">{{ activity.description }}</td>
+              <td class="ip-cell">{{ activity.ipAddress }}</td>
+              <td class="status-cell">
+                <span [ngClass]="getStatusBadgeClass(activity.statusCode)">
+                  {{ activity.statusCode }}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Pagination -->
+        <div class="pagination-section">
+          <div class="pagination-info">
+            <p>
+              Hiển thị {{ activities.length }} / {{ totalElements }} bản ghi
+              (Trang {{ currentPage + 1 }} / {{ totalPages }})
+            </p>
+          </div>
+          <div class="pagination-controls">
+            <button 
+              (click)="onPageChange(currentPage - 1)" 
+              [disabled]="isPrevDisabled()"
+              class="pagination-btn"
+            >
+              ← Trước
+            </button>
+            <div class="page-display">
+              <span>Trang <input type="number" [(ngModel)]="currentPage" (change)="onPageChange(currentPage)" min="0" [max]="totalPages - 1" class="page-input" /> / {{ totalPages }}</span>
+            </div>
+            <button 
+              (click)="onPageChange(currentPage + 1)" 
+              [disabled]="isNextDisabled()"
+              class="pagination-btn"
+            >
+              Tiếp → 
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty State -->
+      <div *ngIf="!loading && !error && activities.length === 0" class="empty-state">
+        <svg xmlns="http://www.w3.org/2000/svg" class="empty-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        <p>Không tìm thấy nhật ký hoạt động nào</p>
+        <button (click)="clearFilters()" class="empty-btn">Xóa bộ lọc</button>
+      </div>
+    </div>
+  </div>
+</div>

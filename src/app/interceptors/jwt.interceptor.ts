@@ -28,7 +28,6 @@ export class JwtInterceptor implements HttpInterceptor {
     if (req.url.includes('/api/auth/profile')) {
       console.log(`[JwtInterceptor] ${req.method} ${req.url} | token ${token ? 'found' : 'missing'}`);
     }
-
     if (token) {
       req = req.clone({
         setHeaders: {
