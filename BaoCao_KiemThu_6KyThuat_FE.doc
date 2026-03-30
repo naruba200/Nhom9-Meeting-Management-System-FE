@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>Báo cáo 6 kỹ thuật kiểm thử FE</title>
+  <style>
+    body {
+      font-family: "Times New Roman", serif;
+      font-size: 14pt;
+      line-height: 1.5;
+      margin: 32px;
+      color: #000;
+    }
+    h1, h2, h3 {
+      text-align: center;
+      margin-bottom: 12px;
+    }
+    h1 {
+      font-size: 18pt;
+      text-transform: uppercase;
+    }
+    h2 {
+      font-size: 15pt;
+      margin-top: 28px;
+    }
+    h3 {
+      font-size: 14pt;
+      text-align: left;
+      margin-top: 18px;
+      margin-bottom: 8px;
+    }
+    p {
+      text-align: justify;
+      margin: 8px 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0 16px;
+    }
+    th, td {
+      border: 1px solid #000;
+      padding: 8px;
+      vertical-align: top;
+    }
+    th {
+      text-align: center;
+      background: #f2f2f2;
+    }
+    ul, ol {
+      margin: 6px 0 12px 24px;
+    }
+    .section-title {
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Báo cáo kiểm thử Frontend đã triển khai</h1>
+  <h2>Meeting Management System</h2>
+
+  <p>
+    Báo cáo này đã được hiệu chỉnh theo đúng các phần kiểm thử đã thêm vào mã nguồn frontend.
+    Trạng thái hiện tại: đã triển khai và chạy thành công bộ kiểm thử hộp trắng cho AuthGuard, JwtInterceptor và AuthService.
+  </p>
+
+  <h2>I. Phạm vi đã triển khai thực tế trong mã nguồn</h2>
+  <table>
+    <tr>
+      <th>Kỹ thuật</th>
+      <th>Trạng thái triển khai</th>
+      <th>File test</th>
+    </tr>
+    <tr>
+      <td>White-box: Branch Coverage</td>
+      <td>Đã triển khai</td>
+      <td>src/app/guards/auth.guard.spec.ts</td>
+    </tr>
+    <tr>
+      <td>White-box: Condition Coverage</td>
+      <td>Đã triển khai</td>
+      <td>src/app/interceptors/jwt.interceptor.spec.ts</td>
+    </tr>
+    <tr>
+      <td>White-box: Statement + Condition Coverage</td>
+      <td>Đã triển khai</td>
+      <td>src/app/services/auth.service.spec.ts</td>
+    </tr>
+    <tr>
+      <td>Black-box: Equivalence Partitioning</td>
+      <td>Đang ở mức thiết kế test case trong báo cáo</td>
+      <td>Chưa có file test tự động tương ứng</td>
+    </tr>
+    <tr>
+      <td>Black-box: Boundary Value Analysis</td>
+      <td>Đang ở mức thiết kế test case trong báo cáo</td>
+      <td>Chưa có file test tự động tương ứng</td>
+    </tr>
+    <tr>
+      <td>Black-box: Decision Table Testing</td>
+      <td>Đang ở mức thiết kế test case trong báo cáo</td>
+      <td>Chưa có file test tự động tương ứng</td>
+    </tr>
+  </table>
+
+  <h2>II. Các kỹ thuật kiểm thử hộp trắng đã áp dụng trong dự án</h2>
+
+  <h3>4. Bao phủ câu lệnh (Statement Coverage)</h3>
+  <p><span class="section-title">Mô tả:</span> Kỹ thuật này nhằm đảm bảo các câu lệnh quan trọng trong mã nguồn đều được thực thi ít nhất một lần.</p>
+  <p><span class="section-title">Áp dụng trong dự án:</span> Ở AuthService, luồng xử lý token và gọi API đăng nhập được dùng để đi qua đầy đủ các câu lệnh chính:</p>
+  <ol>
+    <li>Kiểm tra và chuẩn hóa token từ localStorage.</li>
+    <li>Xử lý trường hợp token rỗng, "undefined", "null" để trả về null.</li>
+    <li>Xử lý trường hợp token sai định dạng trong getUserInfo() và đi vào nhánh catch.</li>
+    <li>Gọi AuthService.login() với dữ liệu đầu vào.</li>
+    <li>Gửi request POST đến endpoint /api/auth/login.</li>
+    <li>Xác nhận payload gửi đi đúng với email và mật khẩu.</li>
+  </ol>
+  <p><span class="section-title">Kết quả mong đợi:</span> Toàn bộ chuỗi xử lý chính trong AuthService được thực thi trọn vẹn mà không bỏ sót bước nào.</p>
+  <p><span class="section-title">Minh chứng mã nguồn:</span> src/app/services/auth.service.spec.ts</p>
+
+  <h3>5. Bao phủ nhánh (Branch Coverage)</h3>
+  <p><span class="section-title">Mô tả:</span> Kỹ thuật này kiểm tra các nhánh đúng và sai của điều kiện rẽ nhánh trong chương trình.</p>
+  <p><span class="section-title">Áp dụng trong dự án:</span> AuthGuard là thành phần rất phù hợp để áp dụng bao phủ nhánh, vì chỉ có hai kết quả chính:</p>
+
+  <table>
+    <tr>
+      <th>Điều kiện</th>
+      <th>Nhánh thực hiện</th>
+      <th>Kết quả mong đợi</th>
+    </tr>
+    <tr>
+      <td>Người dùng đã đăng nhập</td>
+      <td>if = true</td>
+      <td>Cho phép truy cập vào homepage, meeting, profile</td>
+    </tr>
+    <tr>
+      <td>Người dùng chưa đăng nhập</td>
+      <td>else = false</td>
+      <td>Chuyển hướng về trang login</td>
+    </tr>
+  </table>
+
+  <p><span class="section-title">Ý nghĩa:</span> Bao phủ nhánh giúp đảm bảo mọi đường đi chính của luồng bảo vệ trang đều được kiểm tra.</p>
+  <p><span class="section-title">Minh chứng mã nguồn:</span> src/app/guards/auth.guard.spec.ts</p>
+
+  <h3>6. Bao phủ điều kiện (Condition Coverage)</h3>
+  <p><span class="section-title">Mô tả:</span> Kỹ thuật này đảm bảo từng điều kiện con trong biểu thức logic đều được kiểm tra ở cả trạng thái đúng và sai.</p>
+  <p><span class="section-title">Áp dụng trong dự án:</span> Trong AuthService ở FE, phương thức getToken() xử lý nhiều trường hợp token không hợp lệ trước khi cho phép sử dụng:</p>
+
+  <table>
+    <tr>
+      <th>Giá trị token trong localStorage</th>
+      <th>Điều kiện đánh giá</th>
+      <th>Kết quả mong đợi</th>
+    </tr>
+    <tr>
+      <td>Chuỗi rỗng hoặc chỉ có khoảng trắng</td>
+      <td>!token = true</td>
+      <td>Trả về null</td>
+    </tr>
+    <tr>
+      <td>"undefined"</td>
+      <td>token === "undefined"</td>
+      <td>Trả về null</td>
+    </tr>
+    <tr>
+      <td>"null"</td>
+      <td>token === "null"</td>
+      <td>Trả về null</td>
+    </tr>
+    <tr>
+      <td>JWT hợp lệ</td>
+      <td>Tất cả điều kiện sai</td>
+      <td>Trả về token hợp lệ</td>
+    </tr>
+  </table>
+
+  <p><span class="section-title">Giá trị thực tế:</span> Kỹ thuật này giúp frontend tránh sử dụng token rác trong localStorage và giảm lỗi khi điều hướng hoặc gọi API.</p>
+  <p><span class="section-title">Minh chứng mã nguồn:</span> src/app/services/auth.service.spec.ts</p>
+
+  <h2>III. Kết quả chạy kiểm thử đã xác nhận</h2>
+  <p><span class="section-title">Lệnh chạy:</span></p>
+  <p>npx vitest run src/app/guards/auth.guard.spec.ts src/app/interceptors/jwt.interceptor.spec.ts src/app/services/auth.service.spec.ts</p>
+
+  <table>
+    <tr>
+      <th>Chỉ số</th>
+      <th>Kết quả</th>
+    </tr>
+    <tr>
+      <td>Test Files</td>
+      <td>3 passed</td>
+    </tr>
+    <tr>
+      <td>Tests</td>
+      <td>8 passed</td>
+    </tr>
+    <tr>
+      <td>Exit Code</td>
+      <td>0</td>
+    </tr>
+  </table>
+
+  <h2>IV. Phần black-box phù hợp hệ thống (định hướng mở rộng)</h2>
+  <p>
+    Dựa trên chức năng thật của hệ thống (đăng nhập, verify OTP, tạo cuộc họp, đồng bộ Google),
+    nhóm có thể mở rộng test tự động black-box theo 3 kỹ thuật: phân lớp tương đương, giá trị biên, bảng quyết định.
+    Đây là phần đề xuất mở rộng để hoàn thiện đủ 6 kỹ thuật ở mức tự động hóa mã nguồn.
+  </p>
+
+  <h2>V. Kết luận</h2>
+  <p>
+    Báo cáo đã được đồng bộ với trạng thái triển khai hiện tại của dự án frontend: có code kiểm thử hộp trắng thực tế,
+    đã chạy và có số liệu pass rõ ràng. Phần hộp đen hiện đang ở mức thiết kế test case và có thể bổ sung tự động hóa ở giai đoạn tiếp theo.
+  </p>
+</body>
+</html>

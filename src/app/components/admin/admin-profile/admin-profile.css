@@ -1,0 +1,133 @@
+.admin-profile-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  padding: 2rem;
+  color: #fff; /* Default text color for the container */
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 1.5rem;
+}
+
+/* Adjust main content padding if needed, but keep max-width */
+main {
+  padding-top: 2rem; /* Add some top padding */
+}
+
+/* Card styling */
+.bg-white.rounded-2xl.shadow-sm {
+  background: rgba(255, 255, 255, 0.08); /* Darker, semi-transparent background */
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08); /* Subtle shadow */
+}
+
+/* Text colors within cards */
+.text-gray-900 {
+  color: #fff; /* White for headings */
+}
+
+.text-gray-500 {
+  color: rgba(255, 255, 255, 0.7); /* Lighter gray for secondary text */
+}
+
+.text-gray-700 {
+  color: rgba(255, 255, 255, 0.8); /* Slightly lighter for other text */
+}
+
+/* Input fields */
+input[type="text"],
+input[type="tel"],
+input[type="email"] {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+input[type="email"][disabled] {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Buttons */
+.bg-indigo-600 {
+  background-color: #667eea; /* Lighter indigo for primary action */
+}
+
+.hover\:bg-indigo-700:hover {
+  background-color: #764ba2; /* Darker on hover */
+}
+
+.bg-red-500 {
+  background-color: #e74c3c; /* Red for logout */
+}
+
+.hover\:bg-red-600:hover {
+  background-color: #c0392b; /* Darker red on hover */
+}
+
+.bg-gray-100 {
+  background-color: rgba(255, 255, 255, 0.1); /* Gray button background */
+  color: #fff;
+}
+
+.hover\:bg-gray-200:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Specific elements that need color adjustment */
+.text-indigo-600 {
+  color: #667eea; /* Adjust indigo icons/text */
+}
+
+.text-green-600 {
+  color: #38ef7d; /* Adjust green icons/text */
+}
+
+.text-amber-600 {
+  color: #f1c40f; /* Adjust amber icons/text */
+}
+
+/* Error/Success messages */
+.bg-red-50 {
+  background-color: rgba(231, 76, 60, 0.2);
+  border-color: rgba(231, 76, 60, 0.4);
+  color: #e74c3c;
+}
+
+.text-red-700 {
+  color: #e74c3c;
+}
+
+.bg-green-50 {
+  background-color: rgba(52, 152, 219, 0.2);
+  border-color: rgba(52, 152, 219, 0.4);
+  color: #3498db;
+}
+
+.text-green-700 {
+  color: #3498db;
+}
+
+/* Role badges */
+.bg-red-100 {
+  background-color: rgba(231, 76, 60, 0.2);
+}
+.text-red-800 {
+  color: #e74c3c;
+}
+.bg-blue-100 {
+  background-color: rgba(52, 152, 219, 0.2);
+}
+.text-blue-800 {
+  color: #3498db;
+}
+.bg-gray-100 {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+.text-gray-800 {
+  color: rgba(255, 255, 255, 0.8);
+}

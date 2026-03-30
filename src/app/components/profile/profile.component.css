@@ -1,0 +1,54 @@
+/* Profile Component Styles */
+
+/* Animation for loading spinner */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Smooth transitions */
+input:focus {
+  outline: none;
+}
+
+/* Card hover effects */
+.bg-gray-50:hover {
+  background-color: #f3f4f6;
+}
+
+/* Avatar gradient animation */
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.bg-gradient-to-br {
+  background-size: 200% 200%;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .w-32.h-32 {
+    width: 6rem;
+    height: 6rem;
+  }
+  
+  .text-4xl {
+    font-size: 1.5rem;
+  }
+}
