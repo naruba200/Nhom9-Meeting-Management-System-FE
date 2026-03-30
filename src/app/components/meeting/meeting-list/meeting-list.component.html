@@ -71,7 +71,7 @@
         </div>
       </div>
 
-      <div *ngIf="meeting.meetingLink" class="mb-4">
+      <div *ngIf="meeting.meetingLink && !isMeetingOngoing(meeting)" class="mb-4">
         <a [href]="meeting.meetingLink"
            target="_blank"
            rel="noopener noreferrer"
@@ -116,60 +116,60 @@
     <!-- Actions for Creator -->
     <div *ngIf="isCreator(meeting)" class="flex gap-2 pt-3 border-t border-gray-100">
       <!-- Show Join button when meeting is ongoing -->
-      <ng-container *ngIf="isMeetingOngoing(meeting)">
-        <a *ngIf="meeting.meetingLink"
-           [href]="meeting.meetingLink"
-           target="_blank"
-           rel="noopener noreferrer"
-           class="flex items-center gap-1 px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 active:bg-green-800 transition-all duration-200 hover:shadow-md">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-          </svg>
-          Tham gia cuộc họp
-        </a>
-      </ng-container>
+      <a *ngIf="isMeetingOngoing(meeting) && meeting.meetingLink"
+         [href]="meeting.meetingLink"
+         target="_blank"
+         rel="noopener noreferrer"
+         class="flex items-center gap-1 px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 active:bg-green-800 transition-all duration-200 hover:shadow-md">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+        </svg>
+        Tham gia cuộc họp
+      </a>
 
-      <!-- Show regular action buttons when meeting is not ongoing -->
-      <ng-container *ngIf="!isMeetingOngoing(meeting)">
-        <button (click)="onManageAgenda(meeting); $event.stopPropagation()"
-                [disabled]="meeting.status === 'cancelled' || meeting.status === 'completed'"
-                class="flex items-center gap-1 px-3 py-2 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700 active:bg-violet-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-md">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-          </svg>
-          Agenda
-        </button>
+      <!-- Show Agenda button when meeting is not ongoing -->
+      <button *ngIf="!isMeetingOngoing(meeting)" (click)="onManageAgenda(meeting); $event.stopPropagation()"
+              [disabled]="meeting.status === 'cancelled' || meeting.status === 'completed'"
+              class="flex items-center gap-1 px-3 py-2 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700 active:bg-violet-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-md">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+        </svg>
+        Agenda
+      </button>
 
-        <button (click)="onInvite(meeting); $event.stopPropagation()"
-                [disabled]="meeting.status === 'cancelled'"
-                class="flex items-center gap-1 px-3 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 active:bg-indigo-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-md">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-          </svg>
-          Invite
-        </button>
+      <!-- Show Invite button when meeting is not ongoing -->
+      <button *ngIf="!isMeetingOngoing(meeting)" (click)="onInvite(meeting); $event.stopPropagation()"
+              [disabled]="meeting.status === 'cancelled'"
+              class="flex items-center gap-1 px-3 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 active:bg-indigo-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-md">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+        Invite
+      </button>
 
-        <button (click)="onEdit(meeting); $event.stopPropagation()"
-                [disabled]="meeting.status === 'cancelled' || meeting.status === 'completed'"
-                class="flex items-center gap-1 px-3 py-2 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600 active:bg-amber-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-md">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-          </svg>
-          Edit
-        </button>
+      <!-- Show Edit button when meeting is not ongoing -->
+      <button *ngIf="!isMeetingOngoing(meeting)" (click)="onEdit(meeting); $event.stopPropagation()"
+              [disabled]="meeting.status === 'cancelled' || meeting.status === 'completed'"
+              class="flex items-center gap-1 px-3 py-2 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600 active:bg-amber-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-md">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+        </svg>
+        Edit
+      </button>
 
-        <button (click)="onCancel(meeting); $event.stopPropagation()"
-                [disabled]="meeting.status === 'cancelled'"
-                class="flex items-center gap-1 px-3 py-2 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 active:bg-red-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-md">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-          Cancel
-        </button>
-      </ng-container>
+      <!-- Show Cancel button when meeting is not ongoing -->
+      <button *ngIf="!isMeetingOngoing(meeting)" (click)="onCancel(meeting); $event.stopPropagation()"
+              [disabled]="meeting.status === 'cancelled'"
+              class="flex items-center gap-1 px-3 py-2 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 active:bg-red-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-md">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+        Cancel
+      </button>
 
-      <button (click)="onCreateMinutes(meeting); $event.stopPropagation()"
-              [disabled]="meeting.status === 'scheduled'"
+      <!-- Minutes button - always visible, enabled when meeting is ongoing or completed -->
+      <button (click)="onCreateMinutes(meeting); $event.stopPropagation(); $event.preventDefault()"
+              [disabled]="!isMeetingOngoing(meeting) && meeting.status !== 'completed'"
               class="flex items-center gap-1 px-3 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 active:bg-emerald-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-md">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -200,6 +200,29 @@
     (pageSizeChange)="onPageSizeChange($event)"
   >
   </app-pagination>
+</div>
+
+<!-- Minutes Editor Modal (placed before Detail Modal to ensure proper layering) -->
+<div *ngIf="showMinutesEditor && selectedMeeting"
+     class="modal-backdrop fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000]"
+     (click)="closeMinutesEditor()">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-h-[90vh] overflow-y-auto max-w-4xl mx-4"
+       (click)="$event.stopPropagation()">
+    <div class="sticky top-0 bg-white border-b border-gray-100 p-6 z-10">
+      <div class="flex justify-between items-center">
+        <h2 class="text-2xl font-bold text-gray-900">Biên bản cuộc họp</h2>
+        <button (click)="closeMinutesEditor()"
+                class="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-100 rounded-lg">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div class="p-6">
+      <app-minutes-editor [meetingId]="selectedMeeting.id" (cancelEdit)="closeMinutesEditor()"></app-minutes-editor>
+    </div>
+  </div>
 </div>
 
 <!-- Meeting Detail Modal -->
@@ -789,29 +812,6 @@
           {{ isInviting ? 'Đang mời...' : 'Mời' }}
         </button>
       </div>
-    </div>
-  </div>
-</div>
-
-<!-- Minutes Editor Modal -->
-<div *ngIf="showMinutesEditor && selectedMeeting" 
-     class="modal-backdrop fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-     (click)="closeMinutesEditor()">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-h-[90vh] overflow-y-auto max-w-4xl mx-4"
-       (click)="$event.stopPropagation()">
-    <div class="sticky top-0 bg-white border-b border-gray-100 p-6 z-10">
-      <div class="flex justify-between items-center">
-        <h2 class="text-2xl font-bold text-gray-900">Biên bản cuộc họp</h2>
-        <button (click)="closeMinutesEditor()"
-                class="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-100 rounded-lg">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-    </div>
-    <div class="p-6">
-      <app-minutes-editor [meetingId]="selectedMeeting.id" (cancelEdit)="closeMinutesEditor()"></app-minutes-editor>
     </div>
   </div>
 </div>

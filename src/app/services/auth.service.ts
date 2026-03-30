@@ -189,9 +189,33 @@ export class AuthService {
     return this.getRole() === 'ADMIN';
   }
 
+  // Kiểm tra token có hết hạn không
+  isTokenExpired(): boolean {
+    const token = this.getToken();
+    if (!token) return true;
+
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const expiryDate = new Date(payload.exp * 1000);
+      const now = new Date();
+      return now >= expiryDate;
+    } catch {
+      return true;
+    }
+  }
+
   // Kiểm tra đã đăng nhập chưa
   isLoggedIn(): boolean {
-    return !!this.getToken();
+    const token = this.getToken();
+    if (!token) return false;
+    
+    // Kiểm tra token có hết hạn không
+    if (this.isTokenExpired()) {
+      this.logout();
+      return false;
+    }
+    
+    return true;
   }
 
   // Lấy thông tin user từ token

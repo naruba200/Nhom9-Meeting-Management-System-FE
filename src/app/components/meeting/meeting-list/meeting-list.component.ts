@@ -442,9 +442,19 @@ export class MeetingListComponent implements OnInit, OnDestroy {
   }
 
   onCreateMinutes(meeting: Meeting): void {
-    this.selectedMeeting = meeting;
+    // Đóng modal chi tiết trước và clear selectedMeeting
     this.showDetailModal = false;
-    this.showMinutesEditor = true;
+    this.modalOverlayService.setModalOpen(false);
+    const meetingToEdit = { ...meeting };
+    this.selectedMeeting = null as any;
+    this.cdr.detectChanges();
+    
+    // Mở form Minutes sau một khoảng trễ nhỏ để đảm bảo modal chi tiết đã đóng
+    setTimeout(() => {
+      this.selectedMeeting = meetingToEdit;
+      this.showMinutesEditor = true;
+      this.cdr.detectChanges();
+    }, 10);
   }
 
   openDetailModal(meeting: Meeting): void {
