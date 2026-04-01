@@ -1,10 +1,10 @@
-import { ChangeDetectorRef, Component, OnInit, PLATFORM_ID, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, NgZone, OnInit, PLATFORM_ID, inject } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { timeout, TimeoutError } from 'rxjs';
+import { timeout, TimeoutError, Subscription, finalize } from 'rxjs';
 import { AuthService } from '../../services/auth.service';
-import { UserProfile, UpdateProfileRequest } from '../../models/auth.models';
+import { UserProfile, UpdateProfileRequest, GoogleLinkStatusResponse } from '../../models/auth.models';
 import { NavbarComponent } from '../navbar/navbar.component';
 
 @Component({
@@ -23,17 +23,43 @@ export class ProfileComponent implements OnInit {
   isSaving: boolean = false;
   errorMessage: string = '';
   successMessage: string = '';
-  
+
+  // Google account linking
+  googleStatus: GoogleLinkStatusResponse | null = null;
+  loadingGoogleStatus = false;
+  linkingGoogle = false;
+  private popupWindow: Window | null = null;
+  private readonly subscriptions: Subscription[] = [];
+
   // Edit form data
   editForm: UpdateProfileRequest = {
     fullName: '',
     phone: ''
   };
 
+  private readonly onMessageHandler = (event: MessageEvent) => {
+    const data = event.data as { type?: string; success?: boolean; message?: string };
+    if (data?.type !== 'google-link-result') {
+      return;
+    }
+
+    this.ngZone.run(() => {
+      this.linkingGoogle = false;
+      if (data.success) {
+        this.successMessage = 'Liên kết Google thành công.';
+      } else {
+        this.errorMessage = data.message || 'Liên kết Google thất bại.';
+      }
+      this.loadGoogleStatus();
+      this.cdr.detectChanges();
+    });
+  };
+
   constructor(
     private authService: AuthService,
     private router: Router,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private ngZone: NgZone
   ) {}
 
   ngOnInit(): void {
@@ -43,6 +69,9 @@ export class ProfileComponent implements OnInit {
       this.cdr.detectChanges();
       return;
     }
+
+    window.addEventListener('message', this.onMessageHandler);
+    this.loadGoogleStatus();
 
     if (!this.authService.getToken()) {
       console.error('[Profile] Không tìm thấy token trước khi tải profile');
@@ -55,11 +84,17 @@ export class ProfileComponent implements OnInit {
     this.loadProfile();
   }
 
+  ngOnDestroy(): void {
+    window.removeEventListener('message', this.onMessageHandler);
+    this.popupWindow?.close();
+    this.subscriptions.forEach((sub) => sub.unsubscribe());
+  }
+
   loadProfile(): void {
     this.isLoading = true;
     this.errorMessage = '';
     console.log('[Profile] Bắt đầu tải thông tin cá nhân');
-    
+
     this.authService.getProfile().pipe(timeout(10000)).subscribe({
       next: (profile) => {
         console.log('[Profile] Tải thông tin cá nhân thành công');
@@ -90,6 +125,58 @@ export class ProfileComponent implements OnInit {
         this.cdr.detectChanges();
       }
     });
+  }
+
+  loadGoogleStatus(): void {
+    this.loadingGoogleStatus = true;
+    const sub = this.authService.getGoogleLinkStatus()
+      .pipe(finalize(() => {
+        this.loadingGoogleStatus = false;
+        this.cdr.detectChanges();
+      }))
+      .subscribe({
+        next: (status) => {
+          this.googleStatus = status;
+          this.cdr.detectChanges();
+        },
+        error: () => {
+          this.errorMessage = 'Không lấy được trạng thái liên kết Google.';
+          this.cdr.detectChanges();
+        },
+      });
+
+    this.subscriptions.push(sub);
+  }
+
+  connectGoogle(): void {
+    this.linkingGoogle = true;
+    this.errorMessage = '';
+    this.successMessage = '';
+
+    const sub = this.authService.getGoogleLinkUrl()
+      .pipe(finalize(() => {
+        if (!this.popupWindow || this.popupWindow.closed) {
+          this.linkingGoogle = false;
+          this.cdr.detectChanges();
+        }
+      }))
+      .subscribe({
+        next: (response) => {
+          this.popupWindow = window.open(response.authorizationUrl, 'google_oauth_link', 'width=540,height=680');
+          if (!this.popupWindow) {
+            this.errorMessage = 'Trình duyệt đã chặn popup. Vui lòng cho phép popup và thử lại.';
+            this.linkingGoogle = false;
+            this.cdr.detectChanges();
+          }
+        },
+        error: (error) => {
+          this.errorMessage = error?.error?.message || 'Không thể bắt đầu liên kết Google.';
+          this.linkingGoogle = false;
+          this.cdr.detectChanges();
+        },
+      });
+
+    this.subscriptions.push(sub);
   }
 
   retryLoad(): void {

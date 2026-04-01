@@ -9,13 +9,13 @@ import { MeetingComponent } from './components/meeting/meeting.component';
 import { MeetingHistoryComponent } from './components/meeting/meeting-history/meeting-history.component';
 import { CalendarComponent } from './components/calendar/calendar.component';
 import { ProfileComponent } from './components/profile/profile.component';
-import { SettingsComponent } from './components/settings/settings.component';
 import { NotificationsComponent } from './components/notifications/notifications.component';
 import { InvitationsWeekComponent } from './components/invitations-week/invitations-week.component';
 import { InvitationsHistoryComponent } from './components/invitations-history/invitations-history.component';
 import { AdminDashboardComponent } from './components/admin/admin-dashboard/admin-dashboard.component';
 import { AdminNotifications } from './components/admin/admin-notifications/admin-notifications';
 import { AdminUsersComponent } from './components/admin/admin-users/admin-users.component';
+import { AdminProfile } from './components/admin/admin-profile/admin-profile';
 import { AdminFileManagementComponent } from './components/admin/admin-file-management/admin-file-management.component';
 import { AdminActivityLogComponent } from './components/admin/admin-activity-log/admin-activity-log.component';
 import { TasksPageComponent } from './components/tasks-page/tasks-page.component';
@@ -40,13 +40,13 @@ export const routes: Routes = [
   { path: 'tasks', component: TasksPageComponent, canActivate: [UserGuard] },
   { path: 'notifications', component: NotificationsComponent, canActivate: [UserGuard] },
   { path: 'profile', component: ProfileComponent, canActivate: [UserGuard] },
-  { path: 'settings', component: SettingsComponent, canActivate: [UserGuard] },
   {
     path: 'admin',
     canActivate: [AuthGuard, AdminGuard],
     children: [
       { path: '', component: AdminDashboardComponent },
       { path: 'notifications', component: AdminNotifications },
+      { path: 'profile', component: AdminProfile },
       { path: 'users', component: AdminUsersComponent },
       { path: 'files', component: AdminFileManagementComponent },
       { path: 'activities', component: AdminActivityLogComponent }
